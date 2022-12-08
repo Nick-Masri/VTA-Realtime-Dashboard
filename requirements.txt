@@ -1,0 +1,13 @@
+altair==4.2.0
+google_api_python_client==2.68.0
+matplotlib==3.5.1
+pandas==1.5.2
+pgbm==1.8.0
+protobuf
+requests==2.25.1
+scipy==1.8.0
+seaborn==0.11.2
+streamlit
+selenium
+torch
+gurobipy
