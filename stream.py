@@ -10,7 +10,7 @@ import streamlit as st
 from pgbm import PGBM
 from scipy.stats import norm
 
-from helper import solve, download, sidebar
+from helper import solve, download
 
 # download the file
 file = download()
