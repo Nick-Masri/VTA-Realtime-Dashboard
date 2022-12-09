@@ -10,10 +10,12 @@ import streamlit as st
 from pgbm import PGBM
 from scipy.stats import norm
 
-from helper import solve, download
+from helper import solve, download, sidebar
 
 # download the file
 file = download()
+
+# sidebar()
 
 # setup the data
 st.set_page_config(initial_sidebar_state="collapsed")
@@ -22,20 +24,7 @@ st.title("E-BUS Data Portal")
 mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
 
 df = pd.read_pickle('df.pkl')
-
-prob_data = pd.DataFrame(columns=['coach', 'block', 'Probability of Block Completion', 'prob'])
-
-# Using "with" notation
-with st.sidebar:
-    fleet = st.sidebar.selectbox(
-        "Fleet",
-        ("both", "7500s", "9500s")
-    )
-
-    vehicles = st.multiselect(
-        'Vehicle',
-        ['Green', 'Yellow', 'Red', 'Blue'])
-
+prob_data = pd.DataFrame(columns=['coach', 'block', 'Completion Prob.', 'prob'])
 coaches = df.vehicle.value_counts()
 ebec_input = pd.DataFrame(columns=['Date', 'Vehicle', 'start_per'])
 
@@ -56,9 +45,9 @@ with tab1:
     # write output to dashboard
     output = ebec_input
     output.start_per = (np.around(output.start_per.astype(float), 0)).astype(int)
-    output.Date = output.Date.dt.strftime("%m/%d %I:%M%P")
+    output.Date = output.Date.dt.strftime("%m/%d %I:%M %p PST")
     output = output.rename(columns={'start_per': "SOC %", "Date": "Last Online"})
-    st.markdown("# Current SOC")
+    st.markdown("## Current SOC")
     cols = st.columns(2)
     with cols[0]:
         # st.bar_chart(data=output, y="Vehicle:N", x='SOC %:Q')
@@ -74,7 +63,7 @@ with tab1:
     output.index = output.Vehicle
     with cols[1]:
         output['SOC %'] = output['SOC %'].astype(str) + '%'
-        st.dataframe(output[['SOC %', "Last Online"]].sort_index(ascending=True))
+        st.dataframe(output[['SOC %', "Last Online"]].sort_index(ascending=True), use_container_width=True)
 
     # prepare data
     ebec_final = ebec_input[['start_per', 'month']]
@@ -129,8 +118,8 @@ with tab1:
     N_series = 3
     coaches = sorted(coaches)
 
-    st.markdown("# Energy Consumption Predictions")
-
+    st.markdown("## Energy Consumption Predictions")
+    st.write("Red line is kwhs remaining in bus (reserving 20% for battery health")
     n_coaches = ebec_final.shape[0]
 
     preds_df.type = pd.Categorical(preds_df.type,
@@ -179,7 +168,7 @@ with tab1:
                     prob = norm.cdf(eff, val['pred_eff'], val['var'] ** 0.5)
                     prob_data = prob_data.append(
                         {'coach': coach, 'block': block,
-                         'Probability of Block Completion': "{}%".format(int(prob * 100)), 'prob': prob},
+                         'Completion Prob.': "{}%".format(int(prob * 100)), 'prob': prob},
                         ignore_index=True)
                 prob_data = prob_data.sort_values('block', ascending=True)
 
@@ -192,34 +181,30 @@ with tab1:
                 # color_if_false='red', subset=['prob']) st.dataframe(prob_data['Probability of Block Completion'],
                 # use_container_width=True)
                 coach_prop_data = prob_data[prob_data['coach'] == coach]
-                coach_prop_data = coach_prop_data[['block', 'Probability of Block Completion']].set_index('block')
-                st.dataframe(coach_prop_data, use_container_width=True)
+                coach_prop_data = coach_prop_data[['block', 'Completion Prob.']].set_index('block')
+                st.dataframe(coach_prop_data.T, use_container_width=True)
                 # output = data.sort_values('block', ascending=True)
                 # TODO: rewrite table
                 # TODO: add in optimization predictions
 
-    st.markdown("# Optimization Predictions")
-    st.write("To be added shortly")
+    st.markdown("## Optimization Predictions")
+    # st.write("To be added shortly")
     probabilities = prob_data[['coach', 'block', 'prob']]
     probabilities['coach'] = probabilities['coach'].astype(str)
     probabilities['block'] = probabilities['block'].astype(str)
     probabilities = probabilities.set_index(['coach', 'block'])
 
-    st.markdown("## Assignments: ")
+    st.markdown("### Assignments: ")
     st.markdown("Assuming probablility threshold of 95%")
     assignments = solve(probabilities, ebec_input, prob_data)
-    st.write(assignments)
+    # st.write(assignments)
     assignments = assignments.reset_index()
     assignments = assignments.merge(prob_data, left_on=['index', 'Block'], right_on=['coach', 'block'], how='left')
-    st.dataframe(assignments.set_index('index')[['Block', 'Probability of Block Completion']].sort_index(),
+    st.dataframe(assignments.set_index('index')[['Block', 'Completion Prob.']].sort_index(),
                  use_container_width=True)
 
     # st.markdown("## Charging Assignments: ")
     # st.write("Make assignments for charging in order to the buses back on track")
+    #
 
-with tab2:
-    st.markdown("## Solar LSTM/prophet")
-    st.markdown("## Form for user input")
-    st.markdown("## Charging Schedule for week")
-    st.write("Optimal Cost: {}".format(10))
-    st.markdown("")
+# tab2()

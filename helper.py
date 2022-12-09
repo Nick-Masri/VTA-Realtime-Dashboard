@@ -20,7 +20,8 @@ def solve(probabilities, ebec_input, prob_data):
     block_iter = range(len(blocks.keys()))
 
     model = Model('EDis')
-    p_j = np.reshape(probabilities.to_records(), (len(bus_iter), len(block_iter)))
+
+    p_j = np.reshape(probabilities.sort_index().to_records(), (len(bus_iter), len(block_iter)))
     vars = model.addVars(bus_iter, block_iter, vtype=GRB.BINARY, name='X')
     model.addConstrs(vars.sum('*', j) <= 1 for j in block_iter)  # each block can only be assigned to one coach
     model.addConstrs(vars.sum(i, '*') <= 1 for i in bus_iter)  # each coach can only be assigned to one block
@@ -70,3 +71,25 @@ def download():
         file = None
 
     return file
+
+
+def sidebar():
+    with st.sidebar:
+        fleet = st.sidebar.selectbox(
+            "Fleet",
+            ("both", "7500s", "9500s")
+        )
+
+        vehicles = st.multiselect(
+            'Vehicle',
+            ['Green', 'Yellow', 'Red', 'Blue'])
+
+
+def tab2():
+
+    with tab2:
+        st.markdown("## Solar LSTM/prophet")
+        st.markdown("## Form for user input")
+        st.markdown("## Charging Schedule for week")
+        st.write("Optimal Cost: {}".format(10))
+        st.markdown("")
