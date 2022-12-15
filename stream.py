@@ -10,7 +10,7 @@ import streamlit as st
 from pgbm import PGBM
 from scipy.stats import norm
 
-from helper import solve, download
+from helper import solve, download, sidebar
 
 # download the file
 file = download()
@@ -119,14 +119,36 @@ with tab1:
     coaches = sorted(coaches)
 
     st.markdown("## Energy Consumption Predictions")
-    st.write("Red line is kwhs remaining in bus (reserving 20% for battery health")
+    with st.expander("See explanation"):
+        st.write("### Energy Remaining")
+        st.write("Red line is kwhs remaining in bus (reserving 20% for battery health) = ")
+        st.latex(r'''
+        440 * ( SOC - 0.2)
+        ''')
+        st.write("SOC = state of charge of the bus (0 - 100%)")
+        st.write("### High, mid, and low predictions")
+        st.write("Predictions were made using the pgbm library - Probabilistic Gradient Boosting Machines (https://github.com/elephaint/pgbm). \
+            This library provides probablistic predictions instead of just point estimates by fitting a distribution to the data. \
+            The model outputs 100 samples from the distribution given the inputs. \
+            The high is the highest of the sample, the low is the lowest, and the mid. This captures the uncertainty in the data pretty well. \
+            Below I included a demo of the model and how it performs on a test dataset with data it hasn't seen before. It does a good job of capturing the uncertainity, \
+            and the point predictions are typically close, though there are a lot of factors in determining energy consumption(traffic, temperature, operator) that are not currently being accounted for. ")
+        st.image("pgbm-demo.png")
+        st.write("### Probablity of Completion")
+        code = ''' miles = mileages[block]
+kwhs_to_go = 440 * (current_soc - 0.2)  # kwhs left in tank
+eff = kwhs_to_go / miles  # eff
+prob = norm.cdf(eff, val['pred_eff'], val['var'] ** 0.5)'''
+        st.code(code)
+
+    
     n_coaches = ebec_final.shape[0]
 
     preds_df.type = pd.Categorical(preds_df.type,
                                    categories=["high", "mid", "low"],
                                    ordered=True)
     nrows = math.ceil(n_coaches / 2)
-    preds_df = preds_df.sort_values('type')
+    preds_df = preds_df.sort_values('type') 
 
     for j in range(nrows):
         cols = st.columns(2)
@@ -188,23 +210,47 @@ with tab1:
                 # TODO: add in optimization predictions
 
     st.markdown("## Optimization Predictions")
+    
+    with st.expander("See explanation"):
+        st.write("### Energy Remaining")
+    
     # st.write("To be added shortly")
     probabilities = prob_data[['coach', 'block', 'prob']]
     probabilities['coach'] = probabilities['coach'].astype(str)
     probabilities['block'] = probabilities['block'].astype(str)
     probabilities = probabilities.set_index(['coach', 'block'])
 
-    st.markdown("### Assignments: ")
-    st.markdown("Assuming probablility threshold of 95%")
-    assignments = solve(probabilities, ebec_input, prob_data)
-    # st.write(assignments)
-    assignments = assignments.reset_index()
-    assignments = assignments.merge(prob_data, left_on=['index', 'Block'], right_on=['coach', 'block'], how='left')
-    st.dataframe(assignments.set_index('index')[['Block', 'Completion Prob.']].sort_index(),
-                 use_container_width=True)
+    with st.form("Config"):
+        st.markdown("### Assignments (for current SOC): ")
+        values = st.slider(
+        'Probability threshold needed to be assigned (default of 95%)',
+        0.0, 99.0, (95.0))
+        # Every form must have a submit button.
+        submitted = st.form_submit_button("Submit")
+        # if submitted:
+        #     st.write("slider", values)
 
-    # st.markdown("## Charging Assignments: ")
-    # st.write("Make assignments for charging in order to the buses back on track")
-    #
+        if submitted:
+                # st.write("slider", values)
+            values = values *.01
+            assignments = solve(probabilities, ebec_input, prob_data, threshold=values)
+        else:
+            assignments = solve(probabilities, ebec_input, prob_data)
+            
+        # st.write(assignments)
+        assignments = assignments.reset_index()
+        assignments = assignments.merge(prob_data, left_on=['index', 'Block'], right_on=['coach', 'block'], how='left')
+        assignments = assignments.set_index('index')[['Block', 'Completion Prob.']].sort_index()
+        if assignments.shape[0] > 0:
+            st.dataframe(assignments, use_container_width=True)
+        else:
+            st.write("No blocks meet the threshold")
+    # with st.form("charging"):
+    st.markdown("## Charging Assignments: ")
+    st.write("Make assignments for charging in order to the buses back on track")
+        # submitted = st.form_submit_button("Submit")
+
+
+
 
 # tab2()
