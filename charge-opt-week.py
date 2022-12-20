@@ -159,8 +159,7 @@ for b in range(1, B+1):
                     routeRequirement = eRoute[r] * assignment[b][d][r] + routeRequirement
             model.addConstr(eB(b,t) >=  eB_min + routeRequirement)
 
-model.addConstr(solarPowToB + gridPowToB + mainPowToB)
-
+model.addConstr((powerCB[b,t] == solarPowToB[b,t] + gridPowToB[b,t] for t in range(T) for b in range(B)))
 
 model.addConstr(eB_min <= eB <= eB_max)
 

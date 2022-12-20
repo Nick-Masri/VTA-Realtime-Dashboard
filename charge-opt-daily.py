@@ -17,8 +17,8 @@ def solve_charge_daily(dataframe):
     # length of timestep in hours
     dt = .25
 
-    assignment_day = [1]
-    initial_day = [0]
+    assignment_day = [1]  # days we assign buses
+    initial_day = [0] # days where assignments have already been made
 
 
     start_time = 17*4
@@ -86,18 +86,12 @@ def solve_charge_daily(dataframe):
                 model.addConstr(T_two[b,t] == 0)
             else:
                 if t >= start_time:
-                    # print("T1", T_one)
-                    # print("T2", T_two.shape)
-                    # print("CU", chargerUse.shape)
-
-
                     model.addConstr(T_one[b,t] - T_two[b,t] - chargerUse[b,t] + chargerUse[b,t-1] == 0)
                     model.addConstr(Change[b,t] <= chargerUse[b,t-1] + chargerUse[b,t])
                     model.addConstr(Change[b,t] <= 2 - chargerUse[b,t-1] - chargerUse[b,t])
 
     for b in range(B):
         for d in range(D):
-            # print(time)
             model.addConstr(gp.quicksum([Change[b,t] for t in time]) <= 2.0)
             model.addConstr(gp.quicksum([chargerUse[b,t] for t in time]) >= 6*charging[b,d])
             model.addConstr(gp.quicksum([chargerUse[b,t] for t in time]) <= _d*charging[b,d])
@@ -117,32 +111,33 @@ def solve_charge_daily(dataframe):
     model.addConstr(solarPowTotal <= solarPowAvail)
     model.addConstr(0 <= solarPowTotal)
     
-    # Bus Battery Operation
-    for b in range(B):
-        for t in range(T):
-            d = 0 if math.floor(t/96) == 0 else 1
-            routeDepletion = 0
-            if not (d == 0 and t == 1):
-                for r in range(R):
-                    if t == tRet[r][d]: # if the route is returning at this time
-                        # print(routeDepletion)
-                        # print(eRoute)
-                        # print(assignment[b,d,r])
-                        routeDepletion = routeDepletion + eRoute[r] * assignment[b,d,r]
-                model.addConstr(eB[b,t+1] == eB[b,t] + dt * powerCB[b,t] * eff_CB - routeDepletion)
+    # # Bus Battery Operation
+    # for b in range(B):
+    #     for t in range(T):
+    #         d = 0 if math.floor(t/96) == 0 else 1
+    #         routeDepletion = 0
+    #         if not (d == 0 and t == 1):
+    #             for r in range(R):
+    #                 if t == tRet[r][d]: # if the route is returning at this time
+    #                     # print(routeDepletion)
+    #                     # print(eRoute)
+    #                     # print(assignment[b,d,r])
+    #                     routeDepletion = routeDepletion + eRoute[r] * assignment[b,d,r]
+    #             model.addConstr(eB[b,t+1] == eB[b,t] + dt * powerCB[b,t] * eff_CB - routeDepletion)
 
-    for b in range(B):
-        for d in range(D):
-            for i in range(_d):
-                t = tDay[d][i]
-                routeRequirement = 0
-                for r in range(1, R+1):
-                    if t == tDep[r][d]:
-                        routeRequirement = eRoute[r] * assignment[b,d,r] + routeRequirement
-                model.addConstr(eB(b,t) >=  eB_min + routeRequirement)
+    # for b in range(B):
+    #     for d in range(D):
+    #         for i in range(_d):
+    #             t = tDay[d][i]
+    #             routeRequirement = 0
+    #             for r in range(R):
+    #                 if t == tDep[r,d]:
+    #                     routeRequirement = eRoute[r] * assignment[b,d,r] + routeRequirement
+    #             model.addConstr((eB[b,t] >=  eB_min + routeRequirement))
 
-    model.addConstr(solarPowToB + gridPowToB)
-    model.addConstr(eB_min <= eB <= eB_max)
+    # model.addConstr(solarPowToB + gridPowToB)
+    model.addConstrs((eB_min <= eB[b,t] for b in range(B) for t in range(T)))
+    model.addConstrs((eB[b,t] <= eB_max for b in range(B) for t in range(T)))
 
     for t in time:
         for b in range(B):
@@ -150,32 +145,33 @@ def solve_charge_daily(dataframe):
             model.addConstr(powerCB[b,t] <= pCB*chargerUse[b,t])
 
 
-    model.addConstr(eB[:,start_time] == input_socs)
+    # model.addConstr(eB[:,start_time] == input_socs)
 
     # Charging Constraints
     for t in range(T):
-        model.addConstr(np.sum(chargerUse[:,t], 1) <= numChargers)
+        model.addConstr(chargerUse.sum('*', t) <= numChargers)
 
     # Route Coverage Constraints
     for d in assignment_day:
         for r in range(R):
-            model.addConstr(np.sum(assignment[:,d,r], 1) == 1)
+            model.addConstr(assignment.sum('*', d, r) == 1)
 
-    assignment[:, initial_day, :] == 0
+    model.addConstr(assignment.sum('*', initial_day, '*') == 0)
+
+    # for b in range(B):
+    #     for d in range(D):
+    #         for r in range(R):
+    #             for t in range(tDep[r,d], tRet[r,d]):
+    #                 model.addConstr(chargerUse[b,t] + assignment[b,d,r] <= 1)
 
     for b in range(B):
         for d in range(D):
-            for r in range(R):
-                for t in range(tDep[r,d], tRet[r,d]):
-                    model.addConstr(chargerUse[b,t] + assignment[b,d,r] <= 1)
+            model.addConstr(assignment.sum(b,d,'*') <= 1)
 
-    for b in range(B):
-        for d in range(D):
-            model.addConstr(np.sum(assignment[b,d,:]) <= 1)
+    model.addConstrs((gridPowToB[b,t] >= 0 for b in range(B) for t in range(T)))
+    model.addConstrs((solarPowToB[b,t] >= 0 for b in range(B) for t in range(T)))
 
-    model.addConstr(gridPowToB >= 0)
-    model.addConstr(solarPowToB >= 0)
-    model.addConstr(eB >= 0)
+    # model.addConstr(eB.LB == 0)
 
     # Objective Function to Minimize Operational Costs
     cost = .25 * gridPowTotal * np.transpose(gridPowPrice)

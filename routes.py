@@ -20,7 +20,7 @@ def initRoutesDynamically(routeNums, numDays, eB_max, pCB_max):
     # For each route we have selected:
     #   set the bus as unavailable for the duration of the route
     #   determine how much to discharge the bus by when it returns
-    for i in range(1, numRoutes):
+    for i in range(numRoutes):
         # Get route information
         # r = routeNums[i]
         r = i # fix this asap, should correlate to the route number (1st column) in the dataframe. Make this the index
