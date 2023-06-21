@@ -82,6 +82,7 @@ def chargeRealtime(buses):
     # Constraints
     ###########################################
 
+
     model.addConstrs(Change[b,t] == T_one[b,t] + T_two[b,t] for b in range(B) for t in range(T))
     # Charging Activities
     for t in range(T):
@@ -193,26 +194,25 @@ def chargeRealtime(buses):
         'Day': {'0':current_time, '1':tommorow},
                           }))
 
-    st.dataframe(data, use_container_width=True)
+    st.dataframe(data[['Block', 'Coach']], use_container_width=True)
 
-    # eB_values = []
-    # for b in range(B):
-    #     eB_values.append([eB[b, t].x for t in range(T)])
+    eB_values = []
+    for b in range(B):
+        eB_values.append([eB[b, t].x for t in range(T)])
 
-    # # Create a figure with a subplot for each element b in B
-    # fig, axs = plt.subplots(B, 1, sharex=True)
+    # Create a figure with a subplot for each element b in B
+    fig, axs = plt.subplots(B, 1, sharex=True)
 
-    # # Plot the values of eB for each element b in B
-    # for i, b in enumerate(range(B)):
-    #     axs[i].plot(range(T), eB_values[i])
-    #     axs[i].set_ylabel(f"eB[{b}]")
-    #     axs[i].set_ylim((0,440))
+    # Plot the values of eB for each element b in B
+    for i, b in enumerate(range(B)):
+        axs[i].plot(range(T), eB_values[i])
+        axs[i].set_ylabel(f"eB[{b}]")
+        axs[i].set_ylim((0,440))
 
-    # # Set the x-axis label and show the plot
-    # plt.xlabel("Time period (t)")
-    # st.pyplot(fig)
+    # Set the x-axis label and show the plot
+    plt.xlabel("Time period (t)")
+    st.pyplot(fig)
 
-    # chargeruse and B
     realtime_data = {}
     realtime_data['B'] = B
     charger_use_values = np.zeros((B,T))
@@ -221,11 +221,15 @@ def chargeRealtime(buses):
 
     realtime_data['cu'] = charger_use_values
 
-    data = data[data.Day == '12/20'] # TODO: replaced with tomorows data
+    def get_tomorrow():
+        today = datetime.now()
+        tomorrow = today + timedelta(days=1)
+        return tomorrow.strftime('%m/%d')
+
+    data = data[data.Day == get_tomorrow()] # TODO: replaced with tomorows data
     a_matrix = np.zeros((B, 1))
 
     data_matrix = data.melt(id_vars=['Coach', 'Day'], value_vars=['Block'])
-
     data_matrix.Coach = data_matrix.Coach.astype(int)
 
     a_matrix[:, :]= data_matrix[['Coach', 'value']].set_index('Coach')

@@ -2,6 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
+      <module fileurl="file://$USER_HOME$/school/ISE 444/.idea/ISE 444.iml" filepath="$USER_HOME$/school/ISE 444/.idea/ISE 444.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/valence-vta-app.iml" filepath="$PROJECT_DIR$/.idea/valence-vta-app.iml" />
     </modules>
   </component>
