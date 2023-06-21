@@ -6,3 +6,4 @@ allRoutes.xslx
 __pycache__
 .env
 venv/
+.streamlit/secrets.toml
