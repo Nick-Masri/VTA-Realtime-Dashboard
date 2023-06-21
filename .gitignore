@@ -4,3 +4,5 @@ df.pkl
 ML_Models/model2.pt
 allRoutes.xslx
 __pycache__
+.env
+venv/
