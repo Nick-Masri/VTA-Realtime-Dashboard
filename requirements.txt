@@ -11,3 +11,4 @@ altair
 seaborn
 pgbm
 scipy
+streamlit-supabase-auth
