@@ -2,7 +2,8 @@ streamlit~=1.23.1
 supabase~=1.0.3
 PyYAML
 numpy
-pandas==2.0.2
+pandas
+openpyxl
 gurobipy~=10.0.2
 requests
 python-dotenv

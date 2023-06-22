@@ -6,6 +6,8 @@ from streamlit_supabase_auth import login_form, logout_button
 from soc_view import show_soc
 from opt_input import selection_process
 from config import show_config
+from performance import performance
+
 
 ##########################################################
 # Setup
@@ -36,17 +38,20 @@ def main():
             )
 
         # show soc
-        tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs(["Dashboard", "Optimization", "Simulation", "Cost Analysis",
-                                                      "Performance", "Config"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Performance", "Optimization",
+                                          # "Simulation", "Cost Analysis",
+                                          "Config"])
         with tab1:
             show_soc()
 
         with tab2:
+            performance()
+
+        with tab3:
             selection_process()
 
-        with tab6:
+        with tab4:
             show_config()
-
 
         # with tab2:
         #     energy_predictions()

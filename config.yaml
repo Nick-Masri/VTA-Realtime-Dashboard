@@ -1,14 +1,8 @@
-default_threshold: 0.95
+charge_opt: '{''include'': True, ''tou_structure'': {}, ''charger_params'': {''num_chargers'':
+  5, ''constant_kwh'': True, ''kwhs'': 50}, ''bus_params'': {''constant_kwh'': True,
+  ''kwhs'': 440}}'
 default_method: safe_prob
-display_config: false
-mileages: {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
-charge_opt:
-    include: true
-    tou_structure: {}
-    charger_params:
-        num_chargers: 5
-        constant_kwh: true
-        kwhs: 50
-    bus_params:
-        constant_kwh: true
-        kwhs: 440
+default_threshold: '0.92'
+display_config: 'False'
+mileages: '{''7774'': 105.9, ''7773'': 167.3, ''7772'': 145.9, ''7771'': 107.0, ''7072'':
+  112.1}'

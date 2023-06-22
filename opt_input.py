@@ -1,6 +1,6 @@
-import streamlit as st
+import datetime
 
-# from streamlit_supabase_auth import login_form, logout_button
+import streamlit as st
 
 import json
 import os
@@ -10,6 +10,14 @@ import streamlit as st
 import yaml
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from datetime import time, timedelta, datetime, date
+
+
+def convert_depart_index_to_time(depart_index):
+    base_time = time(0, 0)  # Start with midnight as the base time
+    increment = timedelta(minutes=15)  # Each index represents a 15-minute increment
+    delta = increment * depart_index
+    return (datetime.combine(date.today(), base_time) + delta).time()
 
 
 def selection_process():
@@ -112,88 +120,46 @@ def selection_process():
 
     # active_buses = active_buses.drop(columns=['status'])
     # inactive_buses = inactive_buses.drop(columns=['status'])
-    with st.expander("Optimization Parameters", expanded=True):
-        with st.form("opt_input"):
-            # Display the active buses DataFrame
-            st.write("# Buses")
-            active_buses.sort_values('vehicle', inplace=True)
-            df = df.sort_values(['status', 'vehicle'], ascending=[False, True])
-            data = st.data_editor(df, hide_index=True, column_config=column_config, column_order=col_order)
+    with st.form("opt_input"):
+        # Display the active buses DataFrame
+        st.write("# Buses")
+        active_buses.sort_values('vehicle', inplace=True)
+        df = df.sort_values(['status', 'vehicle'], ascending=[False, True])
+        data = st.data_editor(df, hide_index=True, column_config=column_config, column_order=col_order)
 
-            st.write("# Blocks")
-            blocks = pd.read_excel('allRoutes.xlsx')
-            blocks['selection'] = False
-            blocks['routeNum'] = blocks['routeNum'].astype(str)
+        st.write("# Blocks")
+        blocks = pd.read_excel('allRoutes.xlsx')
+        blocks['selection'] = True
+        blocks['routeNum'] = blocks['routeNum'].astype(str)
+        blocks['departIndex'] = blocks['departIndex'].apply(convert_depart_index_to_time)
+        # Set up the grid options
+        st.data_editor(blocks, hide_index=True,
+                       column_config={
+                           "routeNum": st.column_config.TextColumn(
+                               "Block ID",
+                               disabled=True
+                           ),
+                           "selection": st.column_config.CheckboxColumn(
+                               "Select"
+                           ),
+                           "distance": st.column_config.NumberColumn(
+                               "Block Mileage"
+                           ),
 
-            # Set up the grid options
-            st.data_editor(blocks, hide_index=True,
-                           column_config={
-                               "routeNum": st.column_config.TextColumn(
-                                   "Block ID",
-                                   disabled=True
-                               ),
-                               "selection": st.column_config.CheckboxColumn(
-                                   "Select"
-                               ),
-                               "distance": st.column_config.NumberColumn(
-                                   "Block Mileage"
-                               )
+                       },
+                       column_order=['selection', 'routeNum', 'departIndex', 'returnIndex', 'distance']
+                       )
 
-                           },
-                           column_order=['selection', 'routeNum', 'departIndex', 'returnIndex', 'distance']
+        st.write("# Chargers ")
+        data = {"id": range(1, 6), "selection": [True for i in range(1, 6)],
+                "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status (from api)': True}
+
+        chargers_df = pd.DataFrame(data)
+        st.data_editor(chargers_df, hide_index=True, column_order=['selection', 'name', 'status (from api)', 'id', ],
+                       column_config={
+                           "selection": st.column_config.CheckboxColumn(
+                               "Select"
                            )
+                       })
 
-            st.write("# Chargers ")
-            data = {"id": range(1, 6), "selection": [False, False, False, False, False],
-                    "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status (from api)': True}
-
-            chargers_df = pd.DataFrame(data)
-            st.data_editor(chargers_df, hide_index=True, column_order=['selection', 'name', 'status (from api)', 'id', ],
-                           column_config={
-                               "selection": st.column_config.CheckboxColumn(
-                                   "Select"
-                               )
-                           })
-            st.form_submit_button("Submit")
-
-    # df = pd.DataFrame(response['data'])
-    # st.write(df)
-    #
-    # df = pd.read_pickle('df.pkl')
-    # prob_data = pd.DataFrame(columns=['coach', 'block', 'Safe Prob.', 'safe_prob', 'Overall Prob.', 'prob'])
-    # coaches = df.vehicle.value_counts()
-    # ebec_input = pd.DataFrame(columns=['Date', 'Vehicle', 'start_per'])
-    #
-    # for coach in coaches.index:
-    #     # grab most recent data
-    #     coach_df = df[df.vehicle == coach]
-    #     row = coach_df[coach_df.Date == coach_df.Date.max()].iloc[0, :]
-    #     ebec_input = ebec_input.append({'Date': row['Date'], 'Vehicle': row['vehicle'], 'start_per': row['soc']},
-    #                                    ignore_index=True)
-    #
-    # ebec_input['month'] = ebec_input['Date'].dt.month
-    # output = ebec_input
-    # output.start_per = (np.around(output.start_per.astype(float), 0)).astype(int)
-    # output.Date = pd.to_datetime(output.Date)
-    # output.Date = output.Date.dt.strftime("%m/%d %I:%M %p PST")
-    # output = output.rename(columns={'start_per': "SOC (%)", "Date": "Last Online"})
-    # output.to_csv("output.csv")
-    #
-    # # TODO: Add number of blocks covered w/ tolerance
-    # # both safely and overall
-    # # st.markdown("## State of Charge (SOC)")
-    # st.markdown("### Active (last 3 hrs)")
-    #
-    # cols = st.columns(2)
-    # with cols[0]:
-    #     bar = alt.Chart(output).mark_bar(color='green').encode(
-    #         x='SOC (%):Q',
-    #         y=alt.Y('Vehicle:N', sort='ascending'),
-    #     ).properties(height=alt.Step(40))
-    #     st.altair_chart(bar, use_container_width=True)
-    # output.index = output.Vehicle
-    # with cols[1]:
-    #     output['SOC (%)'] = output['SOC (%)'].astype(str) + '%'
-    #     st.dataframe(output[['SOC (%)', "Last Online"]].sort_index(ascending=True), use_container_width=True)
-    #
-    # st.markdown("### Inactive (more than 3 hrs)")
+        st.form_submit_button("Submit")
