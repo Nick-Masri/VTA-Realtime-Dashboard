@@ -151,14 +151,22 @@ def selection_process():
                        )
 
         st.write("# Chargers ")
-        data = {"id": range(1, 6), "selection": [True for i in range(1, 6)],
-                "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status (from api)': True}
+        data = {"selection": [True for i in range(1, 6)],
+                "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status': True}
 
         chargers_df = pd.DataFrame(data)
-        st.data_editor(chargers_df, hide_index=True, column_order=['selection', 'name', 'status (from api)', 'id', ],
+        st.data_editor(chargers_df, hide_index=True, column_order=['selection', 'name', 'status', 'id', ],
                        column_config={
                            "selection": st.column_config.CheckboxColumn(
                                "Select"
+                           ),
+                           "status": st.column_config.TextColumn(
+                               "Status (future feature from api)",
+                               disabled=True,
+                           ),
+                           "name": st.column_config.TextColumn(
+                               "Station Name",
+                               disabled=True
                            )
                        })
 

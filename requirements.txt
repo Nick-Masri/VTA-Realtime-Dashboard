@@ -4,6 +4,7 @@ PyYAML
 numpy
 pandas
 openpyxl
+plotly
 gurobipy~=10.0.2
 requests
 python-dotenv
