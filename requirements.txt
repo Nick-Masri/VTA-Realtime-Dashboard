@@ -3,7 +3,7 @@ supabase~=1.0.3
 PyYAML~=6.0
 numpy~=1.25.0
 pandas~=2.0.2
-openpyxl
+openpyxl~=3.0.9
 plotly~=5.15.0
 gurobipy~=10.0.2
 requests~=2.31.0
