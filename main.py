@@ -2,11 +2,13 @@
 import streamlit as st
 from streamlit_supabase_auth import login_form, logout_button
 
-# from energy_predictions import energy_predictions
-from soc_view import show_soc
-from opt_input import selection_process
-from config import show_config
-from performance import performance
+from components.api import show_apis
+from components.dashboard import dashboard
+from components.config import show_config
+from components.optimization import opt_form
+from components.performance import performance
+from components.active_blocks import show_active_blocks
+from components.vehicle_map import vehicle_map
 
 
 ##########################################################
@@ -38,23 +40,33 @@ def main():
             )
 
         # show soc
-        tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Performance", "Optimization",
-                                          # "Simulation", "Cost Analysis",
-                                          "Config"])
-        with tab1:
-            show_soc()
+        dash, location, hist, opt, api = st.tabs(["Realtime", "Location", "History",
+                                                  "Optimization (Future)",
+                                                  "APIs",
+                                                  # # "Simulation", "Cost Analysis",
+                                                  # "Config"
+                                                  ])
+        with dash:
+            show_active_blocks()
+            dashboard()
 
-        with tab2:
+        with location:
+            vehicle_map()
+
+        with hist:
             performance()
 
-        with tab3:
-            selection_process()
+        with opt:
+            opt_form()
 
-        with tab4:
-            show_config()
-
-        # with tab2:
+        # with tab3:
         #     energy_predictions()
+        # 
+        with api:
+            show_apis()
+
+        # with config:
+        #     show_config()
 
 
 if __name__ == "__main__":

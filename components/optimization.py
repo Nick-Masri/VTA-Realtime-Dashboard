@@ -20,7 +20,7 @@ def convert_depart_index_to_time(depart_index):
     return (datetime.combine(date.today(), base_time) + delta).time()
 
 
-def selection_process():
+def opt_form():
     # get config settings from YAML
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
@@ -78,6 +78,7 @@ def selection_process():
             "State of Charge",
             help="Battery Percentage of Bus",
             format="%d%%",
+            disabled=True
             # width='medium',
             # min_value=0,
             # max_value=100,
@@ -121,53 +122,73 @@ def selection_process():
     # active_buses = active_buses.drop(columns=['status'])
     # inactive_buses = inactive_buses.drop(columns=['status'])
     with st.form("opt_input"):
-        # Display the active buses DataFrame
         st.write("# Buses")
         active_buses.sort_values('vehicle', inplace=True)
         df = df.sort_values(['status', 'vehicle'], ascending=[False, True])
-        data = st.data_editor(df, hide_index=True, column_config=column_config, column_order=col_order)
+        edited_buses_df = st.data_editor(df, hide_index=True, column_config=column_config, column_order=col_order)
 
         st.write("# Blocks")
         blocks = pd.read_excel('allRoutes.xlsx')
         blocks['selection'] = True
         blocks['routeNum'] = blocks['routeNum'].astype(str)
         blocks['departIndex'] = blocks['departIndex'].apply(convert_depart_index_to_time)
-        # Set up the grid options
-        st.data_editor(blocks, hide_index=True,
-                       column_config={
-                           "routeNum": st.column_config.TextColumn(
-                               "Block ID",
-                               disabled=True
-                           ),
-                           "selection": st.column_config.CheckboxColumn(
-                               "Select"
-                           ),
-                           "distance": st.column_config.NumberColumn(
-                               "Block Mileage"
-                           ),
+        blocks['returnIndex'] = blocks['returnIndex'].apply(convert_depart_index_to_time)
 
-                       },
-                       column_order=['selection', 'routeNum', 'departIndex', 'returnIndex', 'distance']
-                       )
+        edited_blocks_df = st.data_editor(blocks, hide_index=True,
+                                          column_config={
+                                              "routeNum": st.column_config.TextColumn(
+                                                  "Block ID",
+                                                  disabled=True
+                                              ),
+                                              "selection": st.column_config.CheckboxColumn(
+                                                  "Select"
+                                              ),
+                                              "distance": st.column_config.NumberColumn(
+                                                  "Block Mileage"
+                                              ),
+                                              "departIndex": st.column_config.TimeColumn(
+                                                  "Departure Time",
+                                                  disabled=True,
+                                                  format="hh:mmA"
+                                              ),
+                                              "returnIndex": st.column_config.TimeColumn(
+                                                  "Arrival Time",
+                                                  disabled=True,
+                                                  format="hh:mmA"
+                                              )
+
+                                          },
+                                          column_order=['selection', 'routeNum', 'departIndex', 'returnIndex',
+                                                        'distance']
+                                          )
 
         st.write("# Chargers ")
-        data = {"selection": [True for i in range(1, 6)],
-                "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status': True}
+        chargers_df = pd.DataFrame({"selection": [True for i in range(1, 6)],
+                                    "name": ["VTA Station #" + str(i) for i in range(1, 6)], 'status': True})
+        edited_chargers_df = st.data_editor(chargers_df, hide_index=True,
+                                            column_order=['selection', 'name', 'status', 'id', ],
+                                            column_config={
+                                                "selection": st.column_config.CheckboxColumn(
+                                                    "Select"
+                                                ),
+                                                "status": st.column_config.TextColumn(
+                                                    "Status (future feature from api)",
+                                                    disabled=True,
+                                                ),
+                                                "name": st.column_config.TextColumn(
+                                                    "Station Name",
+                                                    disabled=True
+                                                )
+                                            })
 
-        chargers_df = pd.DataFrame(data)
-        st.data_editor(chargers_df, hide_index=True, column_order=['selection', 'name', 'status', 'id', ],
-                       column_config={
-                           "selection": st.column_config.CheckboxColumn(
-                               "Select"
-                           ),
-                           "status": st.column_config.TextColumn(
-                               "Status (future feature from api)",
-                               disabled=True,
-                           ),
-                           "name": st.column_config.TextColumn(
-                               "Station Name",
-                               disabled=True
-                           )
-                       })
+        submit = st.form_submit_button("Submit")
 
-        st.form_submit_button("Submit")
+    if submit:
+        st.write("Buses:")
+        st.write(edited_buses_df[edited_buses_df.status == True].vehicle.values)
+        st.write("Blocks")
+        st.write(edited_blocks_df[edited_blocks_df.selection == True].routeNum.values)
+        st.write("Chargers:")
+        st.write(edited_chargers_df[edited_chargers_df.selection == True].name.values)
+    # st.write(edited_blocks_df.selection)
+    # st.write(edited_chargers_df.selection)

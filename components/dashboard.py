@@ -8,9 +8,10 @@ import streamlit as st
 import yaml
 from dotenv import load_dotenv
 from supabase import create_client, Client
+import pytz
 
 
-def show_soc():
+def dashboard():
     # get config settings from YAML
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
@@ -50,6 +51,20 @@ def show_soc():
 
     df = df[['soc', 'vehicle', 'odometer', 'status', 'last_transmission']]
 
+    # Format the odometer column with thousands separator
+    df['odometer'] = df['odometer'].apply(lambda x: "{:,}".format(x))
+
+    # Convert last_transmission column to California timezone
+    california_tz = pytz.timezone('America/Los_Angeles')
+    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
+
+    # Separate the DataFrame into active and inactive buses
+    active_buses = df[df['status'] == True]
+    inactive_buses = df[df['status'] == False]
+
+    active_buses = active_buses.drop(columns=['status'])
+    inactive_buses = inactive_buses.drop(columns=['status'])
+
     # dataframe string formatting
     column_config = {
         "soc": st.column_config.ProgressColumn(
@@ -73,75 +88,19 @@ def show_soc():
         "last_transmission": st.column_config.DatetimeColumn(
             "Last Transmission Time",
             help="Time of Last Transmission",
-            format="HH:mm MM/DD/YYYY",
+            format="hh:mmA MM/DD/YYYY",
+            # timezone=california_tz
         )
     }
 
-    col_order = ['vehicle', 'soc',  'odometer', 'last_transmission']
-
-    # Separate the DataFrame into active and inactive buses
-    active_buses = df[df['status'] == True]
-    inactive_buses = df[df['status'] == False]
-
-    active_buses = active_buses.drop(columns=['status'])
-    inactive_buses = inactive_buses.drop(columns=['status'])
-
-    # Format the odometer column with thousands separator
-    df['odometer'] = df['odometer'].apply(lambda x: "{:,}".format(x))
-
-    # Format the last_transmission column
-    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
-    # df['last_transmission'] = df['last_transmission'].dt.strftime("%H:%M %m/%d/%y")
+    col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
 
     # Display the active buses DataFrame
     st.subheader("Active Buses")
     active_buses.sort_values('vehicle', inplace=True)
     st.dataframe(active_buses, hide_index=True, column_config=column_config, column_order=col_order)
 
-
     # Display the inactive buses DataFrame
     st.subheader("Inactive Buses")
     inactive_buses.sort_values('vehicle', inplace=True)
     st.dataframe(inactive_buses, hide_index=True, column_config=column_config, column_order=col_order)
-
-    # df = pd.DataFrame(response['data'])
-    # st.write(df)
-    #
-    # df = pd.read_pickle('df.pkl')
-    # prob_data = pd.DataFrame(columns=['coach', 'block', 'Safe Prob.', 'safe_prob', 'Overall Prob.', 'prob'])
-    # coaches = df.vehicle.value_counts()
-    # ebec_input = pd.DataFrame(columns=['Date', 'Vehicle', 'start_per'])
-    #
-    # for coach in coaches.index:
-    #     # grab most recent data
-    #     coach_df = df[df.vehicle == coach]
-    #     row = coach_df[coach_df.Date == coach_df.Date.max()].iloc[0, :]
-    #     ebec_input = ebec_input.append({'Date': row['Date'], 'Vehicle': row['vehicle'], 'start_per': row['soc']},
-    #                                    ignore_index=True)
-    #
-    # ebec_input['month'] = ebec_input['Date'].dt.month
-    # output = ebec_input
-    # output.start_per = (np.around(output.start_per.astype(float), 0)).astype(int)
-    # output.Date = pd.to_datetime(output.Date)
-    # output.Date = output.Date.dt.strftime("%m/%d %I:%M %p PST")
-    # output = output.rename(columns={'start_per': "SOC (%)", "Date": "Last Online"})
-    # output.to_csv("output.csv")
-    #
-    # # TODO: Add number of blocks covered w/ tolerance
-    # # both safely and overall
-    # # st.markdown("## State of Charge (SOC)")
-    # st.markdown("### Active (last 3 hrs)")
-    #
-    # cols = st.columns(2)
-    # with cols[0]:
-    #     bar = alt.Chart(output).mark_bar(color='green').encode(
-    #         x='SOC (%):Q',
-    #         y=alt.Y('Vehicle:N', sort='ascending'),
-    #     ).properties(height=alt.Step(40))
-    #     st.altair_chart(bar, use_container_width=True)
-    # output.index = output.Vehicle
-    # with cols[1]:
-    #     output['SOC (%)'] = output['SOC (%)'].astype(str) + '%'
-    #     st.dataframe(output[['SOC (%)', "Last Online"]].sort_index(ascending=True), use_container_width=True)
-    #
-    # st.markdown("### Inactive (more than 3 hrs)")
