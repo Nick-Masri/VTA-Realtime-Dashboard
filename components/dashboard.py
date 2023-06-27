@@ -31,7 +31,7 @@ def dashboard():
     df = pd.DataFrame(data)
 
     # make vehicle column text
-    df['vehicle'] = df['vehicle'].astype('object')
+    df['vehicle'] = df['vehicle'].astype(str)
 
     # Convert the 'created_at' column to datetime type
     df['created_at'] = pd.to_datetime(df['created_at'])
@@ -40,8 +40,8 @@ def dashboard():
     df.sort_values(by='created_at', ascending=False, inplace=True)
 
     if len(merged_df) > 0:
-        # drop ones currently on ruotes
-        df = df[~df['vehicle'].isin(merged_df.vehicle.unique())]
+        merged_df['coach'] = merged_df['coach'].astype(str)
+        df = df[~df['vehicle'].isin(merged_df.coach.unique())]
 
     show_active_blocks(merged_df)
 

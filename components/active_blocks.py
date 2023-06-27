@@ -59,7 +59,7 @@ def get_active_blocks():
 def show_active_blocks(merged_df=get_active_blocks()):
     if len(merged_df) > 0:
         st.subheader("Out on Routes")
-        st.write("Predicted Arrival Time from Swiftly")
+        st.caption("Predicted Arrival Time from Swiftly")
 
         # Display the DataFrame
         st.dataframe(merged_df, hide_index=True,
