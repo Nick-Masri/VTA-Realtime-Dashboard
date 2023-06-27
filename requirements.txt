@@ -14,3 +14,4 @@ PyYAML
 folium
 protobuf3-to-dict
 gtfs-realtime-bindings
+streamlit-folium
