@@ -31,7 +31,7 @@ def performance():
     vehicles = pd.DataFrame(data, index=[0])
     vehicles.start_date = pd.to_datetime(vehicles.start_date)
     vehicles.end_date = pd.to_datetime(vehicles.end_date)
-    st.write("Options")
+    st.write("### Options")
     st.data_editor(vehicles, hide_index=True,
                    column_config={
                        "coaches": st.column_config.SelectboxColumn(
