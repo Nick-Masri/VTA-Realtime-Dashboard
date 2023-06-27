@@ -10,7 +10,7 @@ matplotlib
 seaborn
 streamlit-supabase-auth
 pytz
-yaml
+PyYAML
 folium
 protobuf3-to-dict
 gtfs-realtime-bindings
