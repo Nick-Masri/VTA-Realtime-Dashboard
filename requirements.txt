@@ -16,3 +16,4 @@ openpyxl
 protobuf3-to-dict
 gtfs-realtime-bindings
 streamlit-folium
+pgbm
