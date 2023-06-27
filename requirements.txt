@@ -12,6 +12,7 @@ streamlit-supabase-auth
 pytz
 PyYAML
 folium
+openpyxl
 protobuf3-to-dict
 gtfs-realtime-bindings
 streamlit-folium
