@@ -9,6 +9,7 @@ from components.optimization import opt_form
 from components.performance import performance
 from components.active_blocks import show_active_blocks
 from components.vehicle_map import vehicle_map
+from components.energy_predictions import energy_predictions
 
 
 ##########################################################
