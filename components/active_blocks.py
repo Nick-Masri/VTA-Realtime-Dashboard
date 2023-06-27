@@ -3,10 +3,7 @@ import requests
 import pandas as pd
 
 
-def show_active_blocks():
-    st.subheader("Out on Routes")
-    st.write("Predicted Arrival Time from Swiftly")
-
+def get_active_blocks():
     # Fetch data from API
     url = "https://api.goswift.ly/real-time/vta/active-blocks"
     headers = {"Authorization": "e8201446c114da536ff0a89a4c1c9228"}
@@ -19,6 +16,7 @@ def show_active_blocks():
     # df["id"] = pd.to_numeric(df["id"], errors="coerce")
     # filtered_df = df[df["id"].isin([70, 71, 77, 104])]
     # st.write(filtered_df)
+    # st.write(df)
 
     # Explode "block" column into separate rows
     exploded_df = df.explode("block")
@@ -45,14 +43,6 @@ def show_active_blocks():
     # Convert 'block_endTime' column to datetime format
     merged_df['block_endTime'] = pd.to_datetime(merged_df['block_endTime'], errors='coerce')
 
-    # st.write(merged_df)
-
-    # Filter DataFrame for valid 'block_endTime' and 'isPredictable' values
-    valid_df = merged_df[(merged_df['block_endTime'].dt.hour < 24) & (merged_df['isPredictable'])]
-
-    # Calculate 'predictedArrival' for the valid rows
-    valid_df['predictedArrival'] = valid_df['block_endTime'] + pd.to_timedelta(valid_df['schAdhSecs'], unit='s')
-
     # Calculate 'predictedArrival' by adding 'block_endTime' and 'schAdhSecs' columns
     merged_df['predictedArrival'] = merged_df['block_endTime'] + pd.to_timedelta(merged_df['schAdhSecs'], unit='s')
 
@@ -60,7 +50,17 @@ def show_active_blocks():
     old_buses = [f'750{x}' for x in range(1, 6)]
     new_buses = [f'950{x}' for x in range(1, 6)]
     ebuses = old_buses + new_buses
+    # st.write(merged_df)
+
     merged_df = merged_df[merged_df.coach.isin(ebuses)]
+    return merged_df.copy()
+
+
+def show_active_blocks():
+    st.subheader("Out on Routes")
+    st.write("Predicted Arrival Time from Swiftly")
+
+    merged_df = get_active_blocks()
 
     # Display the DataFrame
     st.dataframe(merged_df, hide_index=True,
@@ -74,4 +74,4 @@ def show_active_blocks():
                      "block_endTime": st.column_config.TimeColumn("Scheduled End Time", format="hh:mmA"),
                      "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
                                                                      format="hh:mmA")
-                 }),
+                 })

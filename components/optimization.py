@@ -1,7 +1,7 @@
 import datetime
 
 import streamlit as st
-
+from helper import convert_time_index
 import json
 import os
 
@@ -10,14 +10,6 @@ import streamlit as st
 import yaml
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from datetime import time, timedelta, datetime, date
-
-
-def convert_depart_index_to_time(depart_index):
-    base_time = time(0, 0)  # Start with midnight as the base time
-    increment = timedelta(minutes=15)  # Each index represents a 15-minute increment
-    delta = increment * depart_index
-    return (datetime.combine(date.today(), base_time) + delta).time()
 
 
 def opt_form():
@@ -131,8 +123,8 @@ def opt_form():
         blocks = pd.read_excel('allRoutes.xlsx')
         blocks['selection'] = True
         blocks['routeNum'] = blocks['routeNum'].astype(str)
-        blocks['departIndex'] = blocks['departIndex'].apply(convert_depart_index_to_time)
-        blocks['returnIndex'] = blocks['returnIndex'].apply(convert_depart_index_to_time)
+        blocks['departIndex'] = blocks['departIndex'].apply(convert_time_index)
+        blocks['returnIndex'] = blocks['returnIndex'].apply(convert_time_index)
 
         edited_blocks_df = st.data_editor(blocks, hide_index=True,
                                           column_config={
