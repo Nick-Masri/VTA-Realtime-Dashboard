@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 import streamlit as st
-from pgbm import PGBM
+from pgbm.torch import PGBM
 from scipy.stats import norm
 
 ##########################################################
@@ -19,7 +19,6 @@ import warnings
 
 
 def energy_predictions():
-
     warnings.simplefilter(action="ignore", category=FutureWarning)
 
     # get config settings from YAML
@@ -78,7 +77,7 @@ def energy_predictions():
                 else:
                     type = "high"
 
-                preds_df = preds_df.append(
+                temp = pd.DataFrame(
                     {
                         "coach": coach,
                         "block": block,
@@ -87,9 +86,9 @@ def energy_predictions():
                         "type": type,
                         "mean": mean,
                         "var": var,
-                    },
-                    ignore_index=True,
-                )
+                    }, index=[0])
+
+                preds_df = pd.concat([preds_df, temp], ignore_index=True)
 
     fig, ax = plt.subplots(1, len(coaches), figsize=(10, 40))
     N_series = 3
@@ -141,18 +140,15 @@ def energy_predictions():
                     kwhs_to_go = 440 * current_soc  # kwhs left in tank
                     eff = kwhs_to_go / miles  # eff
                     prob = norm.cdf(eff, val["pred_eff"], val["var"] ** 0.5)
-
-                    prob_data = prob_data.append(
-                        {
-                            "coach": coach,
-                            "block": block,
-                            "Safe Prob.": "{}%".format(int(safe_prob * 100)),
-                            "safe_prob": safe_prob,
-                            "Overall Prob.": "{}%".format(int(prob * 100)),
-                            "prob": prob,
-                        },
-                        ignore_index=True,
-                    )
+                    temp = pd.DataFrame({
+                        "coach": coach,
+                        "block": block,
+                        "Safe Prob.": "{}%".format(int(safe_prob * 100)),
+                        "safe_prob": safe_prob,
+                        "Overall Prob.": "{}%".format(int(prob * 100)),
+                        "prob": prob,
+                    }, index=[0])
+                    prob_data = pd.concat([prob_data, temp], ignore_index=True)
                 prob_data = prob_data.sort_values("block", ascending=True)
 
                 # TODO: rewrite table
@@ -231,7 +227,7 @@ def energy_predictions():
                 for idx, row in cutoff.iterrows():
                     for block in data.block.unique():
                         row["block"] = block
-                        cutoff_new = cutoff_new.append(row, ignore_index=True)
+                        cutoff_new = pd.concat([cutoff_new, row], ignore_index=True)
 
                 cutoff = cutoff_new
 
@@ -289,10 +285,10 @@ def energy_predictions():
             )
 
             cutoff_new = pd.DataFrame(columns=["start", "stop", "block"])
-            for idx, row in cutoff.iterrows():
+            for _, row in cutoff.iterrows():
                 for block in data.block.unique():
                     row["block"] = block
-                    cutoff_new = cutoff_new.append(row, ignore_index=True)
+                    cutoff_new = pd.concat([cutoff_new, row], ignore_index=True)
 
             cutoff = cutoff_new
 
