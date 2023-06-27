@@ -57,21 +57,22 @@ def get_active_blocks():
 
 
 def show_active_blocks():
-    st.subheader("Out on Routes")
-    st.write("Predicted Arrival Time from Swiftly")
-
     merged_df = get_active_blocks()
 
-    # Display the DataFrame
-    st.dataframe(merged_df, hide_index=True,
-                 column_order=['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'isPredictable',
-                               'schAdhSecs', 'predictedArrival'],
-                 column_config={
-                     "coach": st.column_config.TextColumn("Coach"),
-                     "id": st.column_config.TextColumn("Route ID"),
-                     "block_id": st.column_config.TextColumn("Block ID"),
-                     "block_startTime": st.column_config.TimeColumn("Scheduled Start Time", format="hh:mmA"),
-                     "block_endTime": st.column_config.TimeColumn("Scheduled End Time", format="hh:mmA"),
-                     "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
-                                                                     format="hh:mmA")
-                 })
+    if len(merged_df) > 0:
+        st.subheader("Out on Routes")
+        st.write("Predicted Arrival Time from Swiftly")
+
+        # Display the DataFrame
+        st.dataframe(merged_df, hide_index=True,
+                     column_order=['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'isPredictable',
+                                   'schAdhSecs', 'predictedArrival'],
+                     column_config={
+                         "coach": st.column_config.TextColumn("Coach"),
+                         "id": st.column_config.TextColumn("Route ID"),
+                         "block_id": st.column_config.TextColumn("Block ID"),
+                         "block_startTime": st.column_config.TimeColumn("Scheduled Start Time", format="hh:mmA"),
+                         "block_endTime": st.column_config.TimeColumn("Scheduled End Time", format="hh:mmA"),
+                         "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
+                                                                         format="hh:mmA")
+                     })
