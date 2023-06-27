@@ -3,6 +3,7 @@ from streamlit_folium import folium_static, st_folium
 import requests
 from google.transit import gtfs_realtime_pb2
 from protobuf_to_dict import protobuf_to_dict
+import random
 import streamlit as st
 
 
@@ -25,19 +26,18 @@ def vehicle_map():
     m = folium.Map(location=[37.41845007126032, -121.93728511980153], zoom_start=16)
 
     # Offset for closely located points
-    offset = 0.0008
+    offset = 0.0002
 
     for entity in entities:
         if entity['id'] in ebuses:
             # coach_header = f"Coach {entity['id']}"
             # st.subheader(coach_header)
-            lat = entity['vehicle']['position']['latitude']
-            lon = entity['vehicle']['position']['longitude']
+            lat = entity['vehicle']['position']['latitude'] + offset * random.choice([1, -1])
+            lon = entity['vehicle']['position']['longitude'] + offset * random.choice([1, -1])
             speed = round(entity['vehicle']['position']['speed'], 2)
             popup_text = f"Coach: {entity['id']}<br>Latitude: {lat}<br>Longitude: {lon}<br>Speed: {speed}"
-            # Add an offset to the latitude for better marker visibility
-            lat_offset = lat + offset
-            folium.Marker(location=[lat_offset, lon], popup=popup_text).add_to(m)
+
+            folium.Marker(location=[lat, lon], popup=popup_text).add_to(m)
 
     # Add a rectangle to the map
     coordinates = [
