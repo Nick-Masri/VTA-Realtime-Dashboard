@@ -47,7 +47,6 @@ def main():
                                                   # "Config"
                                                   ])
         with dash:
-            show_active_blocks()
             dashboard()
 
         with location:

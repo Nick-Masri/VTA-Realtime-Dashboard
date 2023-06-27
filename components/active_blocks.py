@@ -56,9 +56,7 @@ def get_active_blocks():
     return merged_df.copy()
 
 
-def show_active_blocks():
-    merged_df = get_active_blocks()
-
+def show_active_blocks(merged_df=get_active_blocks()):
     if len(merged_df) > 0:
         st.subheader("Out on Routes")
         st.write("Predicted Arrival Time from Swiftly")

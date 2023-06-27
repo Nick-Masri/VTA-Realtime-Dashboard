@@ -9,18 +9,11 @@ import yaml
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import pytz
+from components.active_blocks import show_active_blocks, get_active_blocks
 
 
 def dashboard():
-    # get config settings from YAML
-    with open('config.yaml', 'r') as f:
-        config = yaml.safe_load(f)
-
-    # Convert the data to a JSON string
-    config_json = json.dumps(config)
-
-    # Mileage Data
-    mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
+    merged_df = get_active_blocks()
 
     # Load environment variables
     load_dotenv()
@@ -45,6 +38,12 @@ def dashboard():
 
     # Sort the DataFrame by 'created_at' column in descending order
     df.sort_values(by='created_at', ascending=False, inplace=True)
+
+    if len(merged_df) > 0:
+        # drop ones currently on ruotes
+        df = df[~df['vehicle'].isin(merged_df.vehicle.unique())]
+
+    show_active_blocks(merged_df)
 
     # Drop duplicate entries for each vehicle, keeping only the first (most recent)
     df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
