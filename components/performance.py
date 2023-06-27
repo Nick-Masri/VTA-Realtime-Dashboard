@@ -31,22 +31,22 @@ def performance():
     vehicles = pd.DataFrame(data, index=[0])
     vehicles.start_date = pd.to_datetime(vehicles.start_date)
     vehicles.end_date = pd.to_datetime(vehicles.end_date)
-    st.write("### Options")
-    st.data_editor(vehicles, hide_index=True,
-                   column_config={
-                       "coaches": st.column_config.SelectboxColumn(
-                           "Coaches",
-                           options=ebuses
-                       ),
-                       "start_date": st.column_config.DatetimeColumn(
-                           "Start Date",
-                           format="hh:mmA MM/DD/YY"
-                       ),
-                       "end_date": st.column_config.DatetimeColumn(
-                           "End Date",
-                           format="hh:mmA MM/DD/YY"
-                       )
-                   })
+    # st.write("### Options")
+    # st.data_editor(vehicles, hide_index=True,
+    #                column_config={
+    #                    "coaches": st.column_config.SelectboxColumn(
+    #                        "Coaches",
+    #                        options=ebuses
+    #                    ),
+    #                    "start_date": st.column_config.DatetimeColumn(
+    #                        "Start Date",
+    #                        format="hh:mmA MM/DD/YY"
+    #                    ),
+    #                    "end_date": st.column_config.DatetimeColumn(
+    #                        "End Date",
+    #                        format="hh:mmA MM/DD/YY"
+    #                    )
+    #                })
     unique_vehicles = df.vehicle.unique()
 
     # st.selectbox(label="Coaches", options=ebuses)
@@ -88,7 +88,7 @@ def performance():
             st.plotly_chart(fig, use_container_width=True)
 
         with col2:
-            st.write("#### Gain and Loss for Time Period")
+            st.write("#### Gain and Loss")
             # st.write(filtered_df)
             st.write(f'Gain: {round(energy_gain)}%')
             st.write(f'Loss: {round(energy_loss)}%')
