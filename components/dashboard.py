@@ -41,9 +41,12 @@ def dashboard():
 
     if len(merged_df) > 0:
         merged_df['coach'] = merged_df['coach'].astype(str)
+        soc_info = df[df['vehicle'].isin(merged_df.coach.unique())]
         df = df[~df['vehicle'].isin(merged_df.coach.unique())]
-
-    show_active_blocks(merged_df)
+        soc_info = soc_info[soc_info.created_at == soc_info.created_at.max()]
+        soc_info = soc_info[['vehicle', 'soc']]
+        test_df = merged_df.merge(soc_info, left_on="coach", right_on="vehicle")
+        show_active_blocks(test_df)
 
     # Drop duplicate entries for each vehicle, keeping only the first (most recent)
     df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
