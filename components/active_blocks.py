@@ -2,6 +2,7 @@ import streamlit as st
 from calls.supa_select import supabase_block_history
 from calls.swiftly import swiftly_active_blocks
 import pandas as pd
+import pytz
 
 def get_active_blocks():
 
@@ -29,6 +30,8 @@ def show_active_blocks(merged_df=get_active_blocks()):
         merged_df = merged_df[
             ['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'predictedArrival', 'soc',
              'last_transmission', 'odometer']]
+        california_tz = pytz.timezone('US/Pacific')
+        merged_df['last_transmission'] = pd.to_datetime(merged_df['last_transmission']).dt.tz_convert(california_tz)
 
     st.dataframe(merged_df, hide_index=True,
                  column_order=['coach', 'soc', 'id', 'block_id', 'block_startTime', 'block_endTime',

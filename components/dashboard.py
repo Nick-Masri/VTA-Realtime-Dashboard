@@ -28,6 +28,9 @@ def dashboard():
         merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         # st.write(merged_df)
         df = df[~df['vehicle'].isin(merged_df['vehicle'])]
+        # california_tz = pytz.timezone('US/Pacific')
+        # merged_df = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
+
         show_active_blocks(merged_df)
 
     # Separate the DataFrame into active and inactive buses
