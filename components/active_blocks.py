@@ -1,5 +1,5 @@
 import streamlit as st
-from calls.supa_select import supabase_block_history
+from calls.supa_select import supabase_blocks
 from calls.swiftly import swiftly_active_blocks
 import pandas as pd
 import pytz
@@ -7,7 +7,7 @@ import pytz
 def get_active_blocks():
 
     swiftly_df = swiftly_active_blocks()
-    supabase_df = supabase_block_history()
+    supabase_df = supabase_blocks()
 
     if swiftly_df is None: return supabase_df.copy()
     elif supabase_df is None: return swiftly_df.copy()
