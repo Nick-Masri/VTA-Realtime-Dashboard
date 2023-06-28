@@ -6,6 +6,8 @@ import os
 import pandas as pd
 import streamlit as st
 import yaml
+# import datetime.datetime as datetime
+from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import pytz
@@ -13,52 +15,46 @@ from components.active_blocks import show_active_blocks, get_active_blocks
 
 
 def dashboard():
+    # Load the active blocks DataFrame from swifly API
     merged_df = get_active_blocks()
 
-    # Load environment variables
+    # compare with supabase
     load_dotenv()
-
     url: str = os.environ.get("SUPABASE_URL")
     key: str = os.environ.get("SUPABASE_KEY")
     supabase: Client = create_client(url, key)
-
-    response = supabase.table('soc').select("*").execute()
-
-    # Extract the data from the APIResponse object
+    # response = supabase.table('soc').select("*").execute()
+    # response = supabase.table('soc').select("*").order_by('created_at', ascending=False).execute()
+    # yesterday = datetime.today - datetime.timedelta(days=1)
+    yesterday = datetime.today() - pd.Timedelta(days=1)
+    response = supabase.table('soc').select("*").gt("created_at", yesterday).execute()
     data = response.data
-
-    # Convert the data to a DataFrame
     df = pd.DataFrame(data)
-
-    # make vehicle column text
     df['vehicle'] = df['vehicle'].astype(str)
-
-    # Convert the 'created_at' column to datetime type
     df['created_at'] = pd.to_datetime(df['created_at'])
-
-    # Sort the DataFrame by 'created_at' column in descending order
     df.sort_values(by='created_at', ascending=False, inplace=True)
-
-    if len(merged_df) > 0:
-        merged_df['coach'] = merged_df['coach'].astype(str)
-        soc_info = df[df['vehicle'].isin(merged_df.coach.unique())]
-        df = df[~df['vehicle'].isin(merged_df.coach.unique())]
-        soc_info = soc_info[soc_info.created_at == soc_info.created_at.max()]
-        soc_info = soc_info[['vehicle', 'soc']]
-        test_df = merged_df.merge(soc_info, left_on="coach", right_on="vehicle")
-        show_active_blocks(test_df)
+    # st.write(df)
 
     # Drop duplicate entries for each vehicle, keeping only the first (most recent)
     df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
-
     df = df[['soc', 'vehicle', 'odometer', 'status', 'last_transmission']]
-
+    # st.write(df)
     # Format the odometer column with thousands separator
     df['odometer'] = df['odometer'].apply(lambda x: "{:,}".format(x))
 
     # Convert last_transmission column to California timezone
     california_tz = pytz.timezone('America/Los_Angeles')
     df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
+
+
+    if len(merged_df) > 0:
+        merged_df = pd.merge(merged_df, df, left_on='coach', right_on='vehicle',
+                             how='inner', suffixes=('', '_y'))
+        merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
+        # st.write(merged_df)
+        df = df[~df['vehicle'].isin(merged_df['vehicle'])]
+        show_active_blocks(merged_df)
+
 
     # Separate the DataFrame into active and inactive buses
     active_buses = df[df['status'] == True]

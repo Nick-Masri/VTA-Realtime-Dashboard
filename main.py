@@ -41,12 +41,13 @@ def main():
     #         )
 
     # show soc
-    dash, location, hist = st.tabs(["Realtime", "Location", "History",
-                                    # "Optimization (Future)",
-                                    # "APIs",
-                                    # # "Simulation", "Cost Analysis",
-                                    # "Config"
-                                    ])
+    dash, location, hist,  = st.tabs(["Realtime", "Location", "History",
+                                               # "Optimization (Future)",
+                                               # "APIs",
+                                               # "Energy Prediction",
+                                               # # "Simulation", "Cost Analysis",
+                                               # "Config"
+                                               ])
     with dash:
         # vehicle_map()
         dashboard()
@@ -60,8 +61,8 @@ def main():
     # with opt:
     #     opt_form()
     #
-    # # with tab3:
-    # #     energy_predictions()
+    # with pred:
+    #     energy_predictions()
     # #
     # with api:
     #     show_apis()
