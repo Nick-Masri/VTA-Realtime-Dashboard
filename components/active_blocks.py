@@ -1,71 +1,23 @@
 import streamlit as st
-import requests
+from calls.supa_select import supabase_block_history
+from calls.swiftly import swiftly_active_blocks
 import pandas as pd
-from dotenv import load_dotenv
-from supabase import create_client, Client
-import os
 
 def get_active_blocks():
-    # Fetch data from API
-    url = "https://api.goswift.ly/real-time/vta/active-blocks"
-    headers = {"Authorization": "e8201446c114da536ff0a89a4c1c9228"}
-    response = requests.get(url, headers=headers)
-    json_data = response.json()
 
-    # Extract relevant data and create DataFrame
-    block_data = json_data["data"]["blocksByRoute"]
-    df = pd.DataFrame(block_data)
+    swiftly_df = swiftly_active_blocks()
+    supabase_df = supabase_block_history()
 
-    # Explode "block" column into separate rows
-    exploded_df = df.explode("block")
-    exploded_df = exploded_df.reset_index(drop=True)
-    block_df = pd.DataFrame(exploded_df["block"].to_list())
-    block_df = block_df.add_prefix("block_")
-
-    # Concatenate exploded DataFrame and block DataFrame
-    df = pd.concat([exploded_df.drop("block", axis=1), block_df], axis=1)
-
-    # Expand the 'block_vehicle' column
-    expanded_df = df.explode('block_vehicle')
-    expanded_df = expanded_df[['id', 'block_id', 'block_startTime', 'block_endTime', 'block_vehicle']]
-    # st.write(expanded_df)
-    # Extract vehicle details from 'block_vehicle' column
-    vehicle_df = expanded_df.block_vehicle.apply(pd.Series)
-    vehicle_df = vehicle_df.rename(columns={"id": "coach"})
-
-    # Concatenate expanded DataFrame and vehicle DataFrame
-    df = pd.concat([expanded_df, vehicle_df], axis=1)
-    # st.write(df)
-    df = df[
-        ['id', 'block_id', 'block_startTime', 'block_endTime', 'coach', 'isPredictable', 'schAdhSecs']]
-
-    if len(df) > 0:
-        df['block_endTime'] = pd.to_datetime(df['block_endTime'], errors='coerce')
-        df['predictedArrival'] = df['block_endTime'] + pd.to_timedelta(df['schAdhSecs'], unit='s')
-        df.drop(columns=['isPredictable', 'schAdhSecs'], inplace=True)
-        ebuses = [f'750{i}' for i in range(1, 6)] + [f'950{i}' for i in range(1, 6)]
-        df = df[df.coach.isin(ebuses)]
-        # st.write(df)
-        return df.copy()
+    if swiftly_df is None: return supabase_df.copy()
+    elif supabase_df is None: return swiftly_df.copy()
     else:
-        # grab from supabase
-        # Load environment variables
-        load_dotenv()
+        # st.write(swiftly_df)
+        # st.write(supabase_df)
+        merged_df = pd.merge(swiftly_df, supabase_df, on='coach', how='inner', suffixes=('', '_y'))
+        # merged_df.drop_duplicates(subset='id', keep='first', inplace=True)
+        # st.write(merged_df)
+        return merged_df
 
-        url: str = os.environ.get("SUPABASE_URL")
-        key: str = os.environ.get("SUPABASE_KEY")
-        supabase: Client = create_client(url, key)
-
-        response = supabase.table('block_history').select("*").execute()
-        data = response.data
-        df = pd.DataFrame(data)
-        df = df.drop(columns='id')
-
-        df = df[df.created_at == df.created_at.max()]
-        df = df.rename(columns={"start_time": "block_startTime", "end_time": "block_endTime",
-                                "predicted_arrival": "predictedArrival", "route_id": "id"})
-        # st.write(df)
-        return df.copy()
 
 
 def show_active_blocks(merged_df=get_active_blocks()):
@@ -75,11 +27,12 @@ def show_active_blocks(merged_df=get_active_blocks()):
         # st.write(merged_df)
         # Display the DataFrame
         merged_df = merged_df[
-            ['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'predictedArrival', 'soc', 'last_transmission']]
+            ['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'predictedArrival', 'soc',
+             'last_transmission', 'odometer']]
 
     st.dataframe(merged_df, hide_index=True,
                  column_order=['coach', 'soc', 'id', 'block_id', 'block_startTime', 'block_endTime',
-                               'predictedArrival', 'last_transmission'],
+                               'predictedArrival', 'odometer', 'last_transmission'],
                  column_config={
                      "coach": st.column_config.TextColumn("Coach"),
                      "id": st.column_config.TextColumn("Route"),
@@ -93,5 +46,16 @@ def show_active_blocks(merged_df=get_active_blocks()):
                                                             format="%d%%",
                                                             width='medium',
                                                             min_value=0,
-                                                            max_value=100, )
+                                                            max_value=100, ),
+                     "odometer": st.column_config.NumberColumn(
+                        "Odometer (mi)",
+                        help="Bus Odometer Reading in miles",
+                        # format="%d",
+                     ),
+                    "last_transmission": st.column_config.DatetimeColumn(
+                        "Last Transmission Time",
+                        help="Time of Last Transmission",
+                        format="hh:mmA MM/DD/YYYY",
+                        # timezone=california_tz
+                    )
                  })
