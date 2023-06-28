@@ -6,21 +6,12 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import datetime
+from calls.supa_select import supabase_soc_history
 
 
 def performance():
-    load_dotenv()
-
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
-    supabase: Client = create_client(url, key)
-
-    response = supabase.table('soc').select("*").execute()
-    data = response.data
-
-    df = pd.DataFrame(data)
+    df = supabase_soc_history()
     df = df.sort_values('vehicle')
-    df['soc'] = df['soc'].astype(int)
     old_buses = [f'750{x}' for x in range(1, 6)]
     new_buses = [f'950{x}' for x in range(1, 6)]
     ebuses = old_buses + new_buses + ["All"]
