@@ -16,12 +16,9 @@ from components.energy_predictions import energy_predictions
 # Setup
 ##########################################################
 
-# logging.getLogger('googleapicliet.discovery_cache').setLevel(logging.ERROR)
-
-
 def main():
     st.title("E-Bus Data Portal")
-    #
+    # login
     # session = login_form(
     #     url="https://ztkxpouaswqlomjpjnwl.supabase.co",
     #     apiKey="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp0a3hwb3Vhc3dxbG9tanBqbndsIiwicm9sZSI6ImFub24iLCJpYXQiOjE2ODY5MDczMTEsImV4cCI6MjAwMjQ4MzMxMX0.w6FazqiQ9BA1oSbPBf4MmXqeye7Y2U2b5Y2ERDWdcA8",
@@ -40,7 +37,6 @@ def main():
     #             # providers=["google"]
     #         )
 
-    # show soc
     dash, location, hist,  = st.tabs(["Realtime", "Location", "History",
                                                # "Optimization (Future)",
                                                # "APIs",
