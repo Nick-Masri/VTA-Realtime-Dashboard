@@ -5,6 +5,7 @@ import os
 from datetime import datetime
 import pytz
 
+
 def setup_client():
     # (if local) Load environment variables
     load_dotenv()
@@ -13,9 +14,10 @@ def setup_client():
     supabase: Client = create_client(url, key)
     return supabase
 
-def supabase_block_history():
+
+def supabase_blocks(active=True):
     supabase = setup_client()
-    response = supabase.table('block_history').select("*").execute()
+    response = supabase.table('block_history').select("*").order("created_at", desc=True).execute()
     data = response.data
     df = pd.DataFrame(data).drop(columns='id')
 
@@ -23,10 +25,13 @@ def supabase_block_history():
         df = df.rename(columns={"start_time": "block_startTime", "end_time": "block_endTime",
                                 "predicted_arrival": "predictedArrival", "route_id": "id"})
         df['coach'] = df['coach'].astype(str)
-        df = df.sort_values('created_at', ascending=False).drop_duplicates(subset=['coach'], keep='first')
+        df = df.sort_values('created_at', ascending=False)
+        if active == True:
+            df = df.drop_duplicates(subset=['coach'], keep='first')
         return df
     else:
         return None
+
 
 def supabase_soc():
     supabase = setup_client()
@@ -50,6 +55,7 @@ def supabase_soc():
     california_tz = pytz.timezone('America/Los_Angeles')
     df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
     return df.copy()
+
 
 def supabase_soc_history():
     supabase = setup_client()

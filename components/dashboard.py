@@ -65,17 +65,23 @@ def dashboard():
             help="Time of Last Transmission",
             format="hh:mmA MM/DD/YYYY",
             # timezone=california_tz
-        )
+        ),
+        "status": st.column_config.CheckboxColumn("Status")
     }
 
-    col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
+    # col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
+    col_order = ['vehicle', 'soc', 'status', 'odometer', 'last_transmission']
 
-    # Display the active buses DataFrame
-    st.subheader("Active Buses")
-    active_buses.sort_values('vehicle', inplace=True)
-    st.dataframe(active_buses, hide_index=True, column_config=column_config, column_order=col_order)
+    st.subheader("Buses at Depot")
+    df.sort_values('vehicle', inplace=True)
+    st.dataframe(df, hide_index=True, column_config=column_config, column_order=col_order)
 
-    # Display the inactive buses DataFrame
-    st.subheader("Inactive Buses")
-    inactive_buses.sort_values('vehicle', inplace=True)
-    st.dataframe(inactive_buses, hide_index=True, column_config=column_config, column_order=col_order)
+    # # Display the active buses DataFrame
+    # st.subheader("Active Buses")
+    # active_buses.sort_values('vehicle', inplace=True)
+    # st.dataframe(active_buses, hide_index=True, column_config=column_config, column_order=col_order)
+    #
+    # # Display the inactive buses DataFrame
+    # st.subheader("Inactive Buses")
+    # inactive_buses.sort_values('vehicle', inplace=True)
+    # st.dataframe(inactive_buses, hide_index=True, column_config=column_config, column_order=col_order)

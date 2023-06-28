@@ -7,7 +7,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import datetime
 from calls.supa_select import supabase_soc_history
-
+from calls.supa_select import supabase_blocks
 
 def performance():
     df = supabase_soc_history()
@@ -16,8 +16,29 @@ def performance():
     new_buses = [f'950{x}' for x in range(1, 6)]
     ebuses = old_buses + new_buses + ["All"]
 
-    # Get unique vehicles
+    st.subheader("Route History")
+    blocks = supabase_blocks(active=False)
+    blocks['created_at'] = pd.to_datetime(blocks['created_at'])
+    blocks['date'] = blocks['created_at'].dt.strftime('%Y-%m-%d')
+    blocks = blocks.sort_values('created_at')
+    blocks = blocks.drop_duplicates(subset=['coach', 'date'], keep='first')
+    # blocks = blocks.sort_values('vehicle')
+    blocks = blocks.drop(columns=['created_at',  'predictedArrival'])
+    st.dataframe(blocks, hide_index=True,
+                 column_order=["date", "coach", "id", "block_id", "block_startTime", "block_endTime"],
+                 column_config={
+                     "coach": st.column_config.TextColumn("Coach"),
+                     "id": st.column_config.TextColumn("Route"),
+                     "block_id": st.column_config.TextColumn("Block"),
+                     "block_startTime": st.column_config.TimeColumn("Start Time", format="hh:mmA"),
+                     "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
+                     # "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
+                     #                                                 format="hh:mmA"),
+                     "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
+                 })
 
+
+    # Get unique vehicles
     data = {"coaches": "All", "start_date": df.created_at.min(), "end_date": df.created_at.max()}
     vehicles = pd.DataFrame(data, index=[0])
     vehicles.start_date = pd.to_datetime(vehicles.start_date)
