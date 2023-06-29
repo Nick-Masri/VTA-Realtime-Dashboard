@@ -43,7 +43,7 @@ def show_active_blocks(merged_df=get_active_blocks()):
             ['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'predictedArrival', 'soc',
              'last_transmission', 'odometer']]
 
-        merged_df['last_transmission'] = pd.to_datetime(merged_df['last_transmission']) + pd.Timedelta(hours=7)
+        merged_df['last_transmission'] = pd.to_datetime(merged_df['last_transmission'])
 
         st.dataframe(merged_df, hide_index=True,
                      column_order=['coach', 'soc', 'id', 'block_id', 'block_startTime', 'block_endTime',

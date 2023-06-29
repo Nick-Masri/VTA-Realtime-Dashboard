@@ -26,7 +26,7 @@ def dashboard():
         # st.write(merged_df)
         show_active_blocks(merged_df)
 
-    df['last_transmission'] = pd.to_datetime(df['last_transmission']) + pd.Timedelta(hours=7)
+    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
 
     # Separate the DataFrame into active and inactive buses
     active_buses = df[df['status'] == True]
