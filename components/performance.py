@@ -1,31 +1,25 @@
-import streamlit as st
-from dotenv import load_dotenv
-import os
-from supabase import Client, create_client
+from datetime import timedelta
+
 import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
-from datetime import datetime, timedelta
-from calls.supa_select import supabase_soc_history
+import streamlit as st
+
 from calls.supa_select import supabase_blocks
-import pytz
+from calls.supa_select import supabase_soc_history
 
 
 def performance():
-    df = supabase_soc_history()
-    df = df.sort_values('vehicle')
-    california_tz = pytz.timezone('US/Pacific')
-    df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert(california_tz)
-    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(None)
-    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_localize(california_tz)
 
     # Route History
     st.subheader("Service History")
 
+    df = supabase_soc_history()
+    df = df.sort_values('vehicle')
+    df = df.drop(columns=['created_at'])
+    # st.write(df)
+
     # Get the active blocks from supabase
     blocks = supabase_blocks(active=False)
-    # st.write(blocks)
-    blocks['created_at'] = pd.to_datetime(blocks['created_at']).dt.tz_convert(california_tz)
+    blocks['created_at'] = pd.to_datetime(blocks['created_at'])
     blocks['date'] = blocks['created_at'].dt.strftime('%Y-%m-%d')
     blocks = blocks.sort_values('created_at', ascending=False)
     blocks = blocks.drop_duplicates(subset=['date', 'coach'], keep='first')
@@ -35,23 +29,16 @@ def performance():
 
     for idx, row in blocks.iterrows():
         relevant_df = df[df['vehicle'] == row['coach']]
-        # relevant_df['created_at'] = pd.to_datetime(relevant_df['created_at'])
         relevant_df['last_transmission'] = pd.to_datetime(relevant_df['last_transmission'])
 
         block_start_time = pd.to_datetime(row['date'] + ' ' + row['block_startTime'])
         block_end_time = pd.to_datetime(row['date'] + ' ' + row['block_endTime'])
 
-        # Localize block start and end times to the desired timezone
-        timezone = pytz.timezone('US/Pacific')
-        block_start_time = timezone.localize(block_start_time)
-        block_end_time = timezone.localize(block_end_time)
-
         relevant_starts = relevant_df[
             (relevant_df['last_transmission'] <= block_start_time + timedelta(hours=1)) &
-            (relevant_df['last_transmission'] >= block_start_time - timedelta(hours=5))
+            (relevant_df['last_transmission'] >= block_start_time - timedelta(hours=7))
             ]
         relevant_starts = relevant_starts.sort_values('last_transmission', ascending=False)
-        # st.write(relevant_starts)
 
         if relevant_starts.empty:
             # Omit writing SOC and odometer changes
@@ -70,7 +57,7 @@ def performance():
             start_trans = relevant_starts.iloc[0]['last_transmission']
 
         relevant_ends = relevant_df[
-            (relevant_df['last_transmission'] >= block_end_time - timedelta(hours=2)) &
+            (relevant_df['last_transmission'] >= block_end_time - timedelta(hours=1)) &
             (relevant_df['last_transmission'] <= block_end_time + timedelta(hours=5))
             ]
         relevant_ends = relevant_ends.sort_values('last_transmission', ascending=True)
@@ -82,13 +69,9 @@ def performance():
             end_time_change = None
             end_trans = None
         else:
-            # end_soc = min(relevant_ends.iloc[0]['soc'], relevant_ends.iloc[1]['soc'])
-            # # get idx
-            # soc_idx = relevant_ends[relevant_ends['soc'] == end_soc].index[0]
             soc_idx = relevant_ends.iloc[0:2]['soc'].argmin()
             end_soc = relevant_ends.iloc[soc_idx]['soc']
 
-            # st.write(soc_idx)
             end_odometer = relevant_ends.iloc[0:2]['odometer'].max()
             end_trans = relevant_ends.iloc[soc_idx]['last_transmission']
 
@@ -104,27 +87,26 @@ def performance():
             soc_change = abs(end_soc - start_soc)
             kwh_used = soc_change / 100 * 440  # Assuming the bus has a 440 kWh capacity
             kwh_per_mile = kwh_used / miles_travelled
-            if kwh_per_mile < 1.2 or kwh_per_mile > 4:
+            if kwh_per_mile < 1 or kwh_per_mile > 4:
                 kwh_per_mile = None
                 kwh_used = None
                 # start_soc = None
                 # start_trans = None
                 # start_time_change = None
                 soc_change = None
-                end_trans = None
+                # end_trans = None
                 end_soc = None
-                end_time_change = None
+                # end_time_change = None
         else:
             kwh_used = None
             kwh_per_mile = None
 
-        # st.write(time_change)
         result = {
             'Vehicle': row['coach'],
             'Date': row['date'],
-            'Start SOC': start_soc,
-            'End SOC': end_soc,
-            'SOC Change': soc_change,
+            'Start SOC (%)': start_soc,
+            'End SOC (%)': end_soc,
+            'SOC Change (%)': soc_change,
             'Start Odometer': start_odometer,
             'End Odometer': end_odometer,
             'Start Trans': start_trans,
@@ -176,40 +158,3 @@ def performance():
                  column_order=block_col_order,
                  column_config=block_col_config
                  )
-
-    # Get unique vehicles
-    data = {"coaches": "All", "start_date": df.created_at.min(), "end_date": df.created_at.max()}
-    vehicles = pd.DataFrame(data, index=[0])
-    vehicles.start_date = pd.to_datetime(vehicles.start_date)
-    vehicles.end_date = pd.to_datetime(vehicles.end_date)
-    unique_vehicles = df.vehicle.unique()
-
-    # old_buses = [f'750{x}' for x in range(1, 6)]
-    # new_buses = [f'950{x}' for x in range(1, 6)]
-    # ebuses = old_buses + new_buses + ["All"]
-    # st.write("### Options")
-    # st.data_editor(vehicles, hide_index=True,
-    #                column_config={
-    #                    "coaches": st.column_config.SelectboxColumn(
-    #                        "Coaches",
-    #                        options=ebuses
-    #                    ),
-    #                    "start_date": st.column_config.DatetimeColumn(
-    #                        "Start Date",
-    #                        format="hh:mmA MM/DD/YY"
-    #                    ),
-    #                    "end_date": st.column_config.DatetimeColumn(
-    #                        "End Date",
-    #                        format="hh:mmA MM/DD/YY"
-    #                    )
-    #                })
-
-    # st.selectbox(label="Coaches", options=ebuses)
-    # today = datetime.date.today()
-    # tomorrow = today + datetime.timedelta(days=1)
-    # start_date = st.date_input('Start date', today)
-    # end_date = st.date_input('End date', tomorrow)
-    # if start_date < end_date:
-    #     st.success('Start date: `%s`\n\nEnd date:`%s`' % (start_date, end_date))
-    # else:
-    #     st.error('Error: End date must fall after start date.')

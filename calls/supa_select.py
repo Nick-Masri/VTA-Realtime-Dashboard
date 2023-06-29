@@ -51,9 +51,6 @@ def supabase_soc():
     # Format the odometer column with thousands separator
     df['odometer'] = df['odometer'].apply(lambda x: "{:,}".format(x))
 
-    # Convert last_transmission column to California timezone
-    california_tz = pytz.timezone('America/Los_Angeles')
-    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
     return df.copy()
 
 

@@ -16,8 +16,10 @@ def dashboard():
     # get soc from supabase
     df = supabase_soc()
 
-    # make last seen column
-    df['transmission_hrs'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
+    df['last_transmission'] = pd.to_datetime(df['last_transmission'], format='mixed')
+    # df['last_transmission'] = df['last_transmission'].dt.tz_convert(pytz.timezone('US/Pacific'))
+    # df['transmission_hrs'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
+    df['transmission_hrs'] = pd.Timestamp.now() - df['last_transmission']
     df['transmission_hrs'] = df['transmission_hrs'].dt.total_seconds() / 3600
     # make transmission hrs a string, checks if years, months, days, hours, minutes
     df['last_seen'] = df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} months " if x >= 720 else '') + \
@@ -27,6 +29,7 @@ def dashboard():
                       df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hour " if (1 <= x < 2) else '') + \
  \
                       df['transmission_hrs'].apply(lambda x: f"{int(x*60)} minutes " if (x < 1) else '')
+    # df['last_transmission'] = df['last_transmission'].dt.tz_convert(pytz.timezone('US/Pacific'))
     df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
     df['transmission_hrs'] = df['transmission_hrs'].astype(int)
     df['last_transmission'] = pd.to_datetime(df['last_transmission'])
