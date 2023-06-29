@@ -30,8 +30,10 @@ def dashboard():
         df = df[~df['vehicle'].isin(merged_df['vehicle'])]
         # california_tz = pytz.timezone('US/Pacific')
         # merged_df = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
-
+        # st.write(merged_df)
         show_active_blocks(merged_df)
+
+    df['last_transmission'] = pd.to_datetime(df['last_transmission']) + pd.Timedelta(hours=7)
 
     # Separate the DataFrame into active and inactive buses
     active_buses = df[df['status'] == True]

@@ -5,7 +5,7 @@ import streamlit as st
 from shapely.geometry import Point, Polygon
 from streamlit_folium import folium_static
 from components.active_blocks import get_active_blocks
-
+from pyproj import CRS
 from calls.supa_select import supabase_active_location
 
 
@@ -39,13 +39,13 @@ def vehicle_map():
             [37.41748834361772, -121.932785425544],
             [37.42105072840012, -121.93267467387127],
         ]
+        # Specify the CRS as WGS84 (EPSG:4326)
+        depot_crs = CRS.from_epsg(4326)
+
         folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
 
         # Create a Shapely Polygon object from the depot coordinates
         depot_polygon = Polygon(depot_coordinates)
-
-        # Tolerance for the depot polygon
-        tolerance = 0.0005
 
         # convert date to california time and format
         california_tz = pytz.timezone('US/Pacific')
@@ -67,20 +67,22 @@ def vehicle_map():
             folium.Marker(location=[row['lat'], row['long']], popup=popup_text).add_to(m)
 
         # df = df.drop(columns=['created_at'])
+        # buffered_polygon = depot_polygon.buffer(tolerance)
+        df['point'] = [Point(xy) for xy in zip(df['lat'], df['long'])]
         df['at_depot'] = df.apply(
-            lambda row: depot_polygon.buffer(tolerance).contains(Point(row['long'], row['lat'])), axis=1)
-        df['at_depot'] = df['at_depot'].replace({True: 'Yes', False: 'No'})
-
-
+            lambda row: row['point'].within(depot_polygon), axis=1)
         merged_df = get_active_blocks()
         df['location'] = df.apply(
-            lambda row: 'Depot' if row['at_depot'] == 'Yes'
-    else "Block " + str(merged_df[merged_df['coach'] == row['coach']].iloc[0, 1]) if row['coach'] in merged_df['coach'].values
+            lambda row: 'Depot' if row['at_depot']
+            else "Block " + str(merged_df[merged_df['coach'] == row['coach']].iloc[0, 1]) if row['coach'] in merged_df[
+                'coach'].values
             else 'Unknown', axis=1)
         df = df.sort_values(by=['coach'])
+        df['speed'] = df['speed'].astype(int).astype(str) + " mph"
+        df = df.drop(columns=['point', 'at_depot'])
 
         st.dataframe(df, hide_index=True,
-                     column_order=["coach",  "location", "lat", "long", "speed", "created_at"],
+                     column_order=["coach", "location", "lat", "long", "speed", "created_at"],
                      column_config={
                          "coach": st.column_config.TextColumn("Coach"),
                          "location": st.column_config.TextColumn("Location"),
