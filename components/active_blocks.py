@@ -29,7 +29,7 @@ def get_active_blocks():
         # df['predictedArrival'] = pd.to_datetime(df['predictedArrival'])
         # df = df[df['predictedArrival'] > (pd.to_datetime('now') - datetime.timedelta(minutes=30))]
         df['block_endTime'] = pd.to_datetime(df['block_endTime'])
-        df = df[df['block_endTime'] > (pd.to_datetime('now') - datetime.timedelta(minutes=30))]
+        df = df[df['block_endTime'] > pd.to_datetime('now')]
         return df
     else:
         return None
