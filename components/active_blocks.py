@@ -26,10 +26,8 @@ def get_active_blocks():
         df = pd.concat([swiftly_df, supabase_df])\
             .sort_values(['created_at', 'coach'], ascending=False)\
             .drop_duplicates(subset='coach', keep='first')
-        # df['predictedArrival'] = pd.to_datetime(df['predictedArrival'])
-        # df = df[df['predictedArrival'] > (pd.to_datetime('now') - datetime.timedelta(minutes=30))]
-        df['block_endTime'] = pd.to_datetime(df['block_endTime'])
-        df = df[df['block_endTime'] > pd.to_datetime('now')]
+        df['block_endTime'] = pd.to_datetime(df['block_endTime']).dt.tz_localize('US/Pacific')
+        df = df[df['block_endTime'] > pd.Timestamp.now(tz=pytz.timezone('US/Pacific'))]
         return df
     else:
         return None
