@@ -11,32 +11,22 @@ def get_active_blocks():
     supabase_df = supabase_blocks()
     tz = pytz.timezone('US/Pacific')
     if swiftly_df is None and supabase_df is not None:
-        # filter out inactive blocks by date
-        supabase_df['predictedArrival'] = pd.to_datetime(supabase_df['predictedArrival'], format='mixed')
-        # need this line to remove the current (incorrect) timezone of utc
-        supabase_df['predictedArrival'] = supabase_df['predictedArrival'].dt.tz_localize(None)
-        supabase_df['predictedArrival'] = supabase_df['predictedArrival'].dt.tz_localize(tz)
-        supabase_df = supabase_df[supabase_df['predictedArrival'] > datetime.now(tz=tz)]
-        return supabase_df.copy()
+        df = supabase_df.copy()
     elif supabase_df is None and swiftly_df is not None:
-        swiftly_df['predictedArrival'] = pd.to_datetime(swiftly_df['predictedArrival'], format='mixed')
-        # need this line to remove the current (incorrect) timezone of utc
-        swiftly_df['predictedArrival'] = swiftly_df['predictedArrival'].dt.tz_localize(None)
-        swiftly_df['predictedArrival'] = swiftly_df['predictedArrival'].dt.tz_localize(tz)
-        swiftly_df = swiftly_df[swiftly_df['predictedArrival'] > datetime.now(tz=tz)]
-        return swiftly_df.copy()
+        df = swiftly_df.copy()
     elif swiftly_df is not None and supabase_df is not None:
         df = pd.concat([swiftly_df, supabase_df]) \
             .sort_values(['created_at', 'coach'], ascending=False) \
             .drop_duplicates(subset='coach', keep='first')
-        # localize to pacific time
-        # st.write(df)
-        df['predictedArrival'] = pd.to_datetime(df['predictedArrival'], format='mixed')
-        # need this line to remove the current (incorrect) timezone of utc
-        df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(None)
-        df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(tz)
-        df = df[df['predictedArrival'] > datetime.now(tz=tz)]
+        df = df.copy()
 
+    df['predictedArrival'] = pd.to_datetime(df['predictedArrival'], format='mixed')
+    # need this line to remove the current (incorrect) timezone of utc
+    df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(None)
+    df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(tz)
+    df = df[df['predictedArrival'] > datetime.now(tz=tz)]
+
+    if len(df) > 0:
         return df.copy()
     else:
         return None
