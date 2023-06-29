@@ -26,9 +26,9 @@ def supabase_blocks(active=True):
                                 "predicted_arrival": "predictedArrival", "route_id": "id"})
         df['coach'] = df['coach'].astype(str)
         df = df.sort_values('created_at', ascending=False)
-        if active == True:
+        if active:
             df = df.drop_duplicates(subset=['coach'], keep='first')
-        return df
+        return df.copy()
     else:
         return None
 
