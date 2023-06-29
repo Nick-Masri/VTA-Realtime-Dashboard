@@ -18,7 +18,7 @@ def performance():
     df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert(california_tz)
 
     # Route History
-    st.subheader("Bus Block History")
+    st.subheader("Service History")
 
     # Get the active blocks from supabase
     blocks = supabase_blocks(active=False)
@@ -150,44 +150,3 @@ def performance():
     #     st.success('Start date: `%s`\n\nEnd date:`%s`' % (start_date, end_date))
     # else:
     #     st.error('Error: End date must fall after start date.')
-
-    # Iterate through each vehicle and create an area graph
-    for vehicle in unique_vehicles:
-        col1, col2 = st.columns(2)
-        # fig = go.Figure()
-        filtered_df = df[df.vehicle == vehicle]
-        filtered_df = filtered_df.sort_values('created_at')
-        # Calculate the energy lost and gained
-        filtered_df['energy_change'] = filtered_df['soc'].diff()
-
-        energy_loss = filtered_df[filtered_df['energy_change'] < 0]['energy_change'].sum()
-        energy_gain = filtered_df[filtered_df['energy_change'] > 0]['energy_change'].sum()
-
-        fig = px.area(filtered_df,
-                      x=filtered_df['created_at'],
-                      y=filtered_df['soc'])
-
-        # Set the layout for the chart
-        fig.update_layout(
-            title=f'State of Charge for Coach {vehicle}',
-            xaxis_title="Date Recorded",
-            yaxis_title="State of Charge Percentage (%)",
-            yaxis_range=[-5, 105]
-        )
-
-        # Render the scatter plot in Streamlit
-        with col1:
-            st.plotly_chart(fig, use_container_width=True)
-
-        with col2:
-            st.write("#### Gain and Loss")
-            # st.write(filtered_df)
-            st.write(f'Gain: {round(energy_gain)}%')
-            st.write(f'Loss: {round(energy_loss)}%')
-            vehicle_df = blocks[blocks.coach == vehicle]
-            if not vehicle_df.empty:
-                st.write("#### Vehicle Drive History")
-
-                st.dataframe(vehicle_df, hide_index=True,
-                             column_order=block_col_order,
-                             column_config=block_col_config)

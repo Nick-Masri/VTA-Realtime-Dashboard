@@ -73,9 +73,13 @@ def supabase_active_location():
         return None
 
 
-def supabase_soc_history():
+def supabase_soc_history(vehicle=None):
     supabase = setup_client()
-    response = supabase.table('soc').select("*").order("created_at", desc=True).execute()
+    if vehicle is None:
+        response = supabase.table('soc').select("*").order("created_at", desc=True).execute()
+    elif vehicle is not None:
+        response = supabase.table('soc').select("*").eq('vehicle', vehicle).order("created_at", desc=True).execute()
+
     data = response.data
     df = pd.DataFrame(data)
     df['vehicle'] = df['vehicle'].astype(str)
