@@ -16,25 +16,26 @@ def dashboard():
     # get soc from supabase
     df = supabase_soc()
 
+    # make last seen column
+    df['transmission_hrs'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
+    df['transmission_hrs'] = df['transmission_hrs'].dt.total_seconds() / 3600
+    # make transmission hrs a string, checks if years, months, days, hours, minutes
+    df['last_seen'] = df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} months " if x >= 720 else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} days " if (720 > x >= 48) else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} day " if (48 > x >= 24) else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hours " if (1 <= x < 24) else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int(x*60)} minutes " if (x < 1) else '')
+    df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
+    df['transmission_hrs'] = df['transmission_hrs'].astype(int)
+    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
+
     if merged_df is not None:
         merged_df = pd.merge(merged_df, df, left_on='coach', right_on='vehicle',
                              how='inner', suffixes=('', '_y'))
         merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
-        # st.write(merged_df)
         df = df[~df['vehicle'].isin(merged_df['vehicle'])]
-        # california_tz = pytz.timezone('US/Pacific')
-        # merged_df = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
-        # st.write(merged_df)
+
         show_active_blocks(merged_df)
-
-    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
-
-    # Separate the DataFrame into active and inactive buses
-    active_buses = df[df['status'] == True]
-    inactive_buses = df[df['status'] == False]
-
-    active_buses = active_buses.drop(columns=['status'])
-    inactive_buses = inactive_buses.drop(columns=['status'])
 
     # dataframe string formatting
     column_config = {
@@ -54,27 +55,27 @@ def dashboard():
         "odometer": st.column_config.NumberColumn(
             "Odometer (mi)",
             help="Bus Odometer Reading in miles",
-            # format="%d",
         ),
         "last_transmission": st.column_config.DatetimeColumn(
             "Last Transmission Time",
             help="Time of Last Transmission",
             format="hh:mmA MM/DD/YYYY",
-            # timezone=california_tz
         ),
         "status": st.column_config.CheckboxColumn("Status")
     }
 
-    # col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
-    col_order = ['vehicle', 'last_transmission', 'soc', 'status', 'odometer',  'time_difference']
+    df.sort_values(['last_transmission', 'status', 'vehicle'], ascending=False, inplace=True)
+    active = df[df['transmission_hrs'] <= 24]
+    inactive = df[df['transmission_hrs'] > 24]
+    column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
 
     st.subheader("Buses at Depot")
-    df.sort_values(['last_transmission', 'status', 'vehicle'], ascending=False, inplace=True)
-    df['transmission_age'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
-    df['transmission_age'] = df['transmission_age'].dt.total_seconds() / 3600
-    df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
+    active = active.sort_values('transmission_hrs')
+    active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
+    active = active[['vehicle', 'soc', 'last_seen', 'odometer']]
+    st.dataframe(active, hide_index=True, column_config=column_config)
 
-    df = df.style.background_gradient(cmap='RdYlGn_r', vmin=2, vmax=24, axis=0, gmap=df['transmission_age'], subset='last_transmission')
-    # st.write(df_styled)
-    # format the last transmission time as %I:%M:%S %p %m/%d/%Y
-    st.dataframe(df, hide_index=True, column_config=column_config, column_order=col_order)
+    st.subheader("Offline for more than a day")
+    inactive = inactive.sort_values('transmission_hrs')
+    inactive = inactive[['vehicle', 'soc', 'last_seen', 'odometer']]
+    st.dataframe(inactive, hide_index=True, column_config=column_config)
