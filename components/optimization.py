@@ -35,9 +35,6 @@ def opt_form():
     # Extract the data from the APIResponse object
     data = response.data
 
-    # placeholder
-    placeholder = pd.DataFrame()
-
     # Convert the data to a DataFrame
     df = pd.DataFrame(data)
 
