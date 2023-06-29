@@ -4,6 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from calls.supa_select import supabase_soc
+import pytz
 # import datetime.datetime as datetime
 from components.active_blocks import show_active_blocks, get_active_blocks
 
@@ -65,8 +66,15 @@ def dashboard():
     }
 
     # col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
-    col_order = ['vehicle', 'soc', 'status', 'odometer', 'last_transmission', 'time_difference']
+    col_order = ['vehicle', 'last_transmission', 'soc', 'status', 'odometer',  'time_difference']
 
     st.subheader("Buses at Depot")
-    df.sort_values('vehicle', inplace=True)
+    df.sort_values(['last_transmission', 'status', 'vehicle'], ascending=False, inplace=True)
+    df['transmission_age'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
+    df['transmission_age'] = df['transmission_age'].dt.total_seconds() / 3600
+    df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
+
+    df = df.style.background_gradient(cmap='RdYlGn_r', vmin=2, vmax=24, axis=0, gmap=df['transmission_age'], subset='last_transmission')
+    # st.write(df_styled)
+    # format the last transmission time as %I:%M:%S %p %m/%d/%Y
     st.dataframe(df, hide_index=True, column_config=column_config, column_order=col_order)
