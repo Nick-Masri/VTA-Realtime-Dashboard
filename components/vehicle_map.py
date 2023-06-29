@@ -4,14 +4,17 @@ import pytz
 import streamlit as st
 from shapely.geometry import Point, Polygon
 from streamlit_folium import folium_static
+from components.active_blocks import get_active_blocks
 
 from calls.supa_select import supabase_active_location
+
 
 def move_to_vehicle_location(pos, m):
     # Update the map's center to the vehicle's position
     m.location = pos
     # Re-render the map
     folium_static(m)
+
 
 def vehicle_map():
     df = supabase_active_location()
@@ -68,11 +71,19 @@ def vehicle_map():
             lambda row: depot_polygon.buffer(tolerance).contains(Point(row['long'], row['lat'])), axis=1)
         df['at_depot'] = df['at_depot'].replace({True: 'Yes', False: 'No'})
 
+
+        merged_df = get_active_blocks()
+        df['location'] = df.apply(
+            lambda row: 'Depot' if row['at_depot'] == 'Yes'
+    else "Block " + str(merged_df[merged_df['coach'] == row['coach']].iloc[0, 1]) if row['coach'] in merged_df['coach'].values
+            else 'Unknown', axis=1)
+        df = df.sort_values(by=['coach'])
+
         st.dataframe(df, hide_index=True,
-                     column_order=["coach", "at_depot", "lat", "long", "speed", "created_at"],
+                     column_order=["coach",  "location", "lat", "long", "speed", "created_at"],
                      column_config={
                          "coach": st.column_config.TextColumn("Coach"),
-                         "at_depot": st.column_config.TextColumn("At Depot"),
+                         "location": st.column_config.TextColumn("Location"),
                          "lat": st.column_config.TextColumn("Latitude"),
                          "long": st.column_config.TextColumn("Longitude"),
                          "speed": st.column_config.TextColumn("Speed"),
@@ -82,9 +93,8 @@ def vehicle_map():
 
         # Display the Folium Map
         # selectbox for location
-        df = df.sort_values(by=['coach'])
         options = df.coach.unique().tolist() + ["Depot"]
-        location = st.selectbox("Select Location", options, index=len(options)-1)
+        location = st.selectbox("Select Location", options, index=len(options) - 1)
         if location != "Depot":
             selected_vehicle = df[df['coach'] == location].iloc[0, :]
             move_to_vehicle_location([selected_vehicle.lat, selected_vehicle.long], m)
