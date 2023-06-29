@@ -57,6 +57,22 @@ def supabase_soc():
     return df.copy()
 
 
+def supabase_active_location():
+    supabase = setup_client()
+    response = supabase.table('location').select("*").order("created_at", desc=True).execute()
+    data = response.data
+    df = pd.DataFrame(data)
+    if len(df) > 0:
+        df['coach'] = df['coach'].astype(str)
+        df = df.sort_values('created_at', ascending=False)
+        df = df.drop_duplicates(subset=['coach'], keep='first')
+        df = df.drop(columns=['id'])
+        return df.copy()
+
+    else:
+        return None
+
+
 def supabase_soc_history():
     supabase = setup_client()
     response = supabase.table('soc').select("*").order("created_at", desc=True).execute()

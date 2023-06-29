@@ -1,67 +1,78 @@
 import folium
-from streamlit_folium import folium_static, st_folium
-import requests
-from google.transit import gtfs_realtime_pb2
-from protobuf_to_dict import protobuf_to_dict
-import random
-import streamlit as st
 import pandas as pd
+import pytz
+import streamlit as st
+from shapely.geometry import Point, Polygon
+from streamlit_folium import folium_static
+
+from calls.supa_select import supabase_active_location
 
 
 def vehicle_map():
-    st.subheader("Vehicle Map")
-    st.caption("Zoomed in On Depot")
-    api_key = "bcfb0797-65e1-494a-ab8d-054b48f0e111"
-    url = f"http://api.511.org/Transit/VehiclePositions?api_key={api_key}&agency=RG"
-    try:
+    df = supabase_active_location()
 
-        feed = gtfs_realtime_pb2.FeedMessage()
-        response = requests.get(url)
-        feed.ParseFromString(response.content)
+    if df is None:
+        st.write("Map Currently Unavailable")
+    else:
+        st.subheader("Vehicle Map")
+        st.caption("Zoomed in On Depot")
 
         old_buses = [f'750{x}' for x in range(1, 6)]
         new_buses = [f'950{x}' for x in range(1, 6)]
         ebuses = old_buses + new_buses
 
-        output_dict = protobuf_to_dict(feed)
-        entities = output_dict['entity']
-
         # Create a Folium Map object centered around the Cerone Bus Yard
         m = folium.Map(location=[37.41845007126032, -121.93728511980153], zoom_start=14)
 
-        # Offset for closely located points
-        offset = 0.0002
-
-        found_vehicles = pd.DataFrame(columns=['coach', 'position', 'at_depot'])
-
-        for entity in entities:
-            if entity['id'] in ebuses:
-                lat = entity['vehicle']['position']['latitude'] + offset * random.choice([1, -1])
-                lon = entity['vehicle']['position']['longitude'] + offset * random.choice([1, -1])
-                speed = round(entity['vehicle']['position']['speed'], 2)
-                popup_text = f"Coach: {entity['id']}<br>Latitude: {lat}<br>Longitude: {lon}<br>Speed: {speed}"
-                folium.Marker(location=[lat, lon], popup=popup_text).add_to(m)
-                temp = pd.DataFrame({"Coach": entity['id'], "Go To Position": False, "At Depot": "False"}, index=[0])
-                found_vehicles = pd.concat([found_vehicles, temp], ignore_index=True)
-
-        # st.data_editor(found_vehicles, hide_index=True, key="Map",
-        #                column_config={
-        #                    "position": st.column_config.CheckboxColumn("Go To Position"),
-        #                    "coach": st.column_config.TextColumn("Coach", disabled=True),
-        #                    "at_depot": st.column_config.TextColumn("At Depot", disabled=True),
-        #                })
-
-        # Add a rectangle to the map
-        og_coordinates = [
+        # Define the polygon coordinates of the depot
+        depot_coordinates = [
             [37.41999522465071, -121.93949237138894],
             [37.41649876221854, -121.93810797555054],
             [37.41748834361772, -121.932785425544],
             [37.42105072840012, -121.93267467387127],
         ]
+        folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
 
-        folium.Polygon(og_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
+        # Create a Shapely Polygon object from the depot coordinates
+        depot_polygon = Polygon(depot_coordinates)
+
+        # Tolerance for the depot polygon
+        tolerance = 0.0005
+
+        # convert date to california time and format
+        california_tz = pytz.timezone('US/Pacific')
+        df['created_at'] = pd.to_datetime(df['created_at'])
+        df['created_at'] = df['created_at'].dt.tz_convert(california_tz)
+        df['created_at'] = df['created_at'].dt.strftime('%m/%d/%y %I:%M %p')
+
+        # round lat and long to 6 decimal places
+        df['lat'] = df['lat'].round(6)
+        df['long'] = df['long'].round(6)
+
+        # add markers to map
+        for index, row in df.iterrows():
+            popup_text = f"Coach: {row['coach']}" \
+                         f"<br>Latitude: {row['lat']}" \
+                         f"<br>Longitude: {row['long']}" \
+                         f"<br>Speed: {row['speed']} " \
+                         f"<br>Last Transmission: {row['created_at']}"
+            folium.Marker(location=[row['lat'], row['long']], popup=popup_text).add_to(m)
+
+        # df = df.drop(columns=['created_at'])
+        df['at_depot'] = df.apply(
+            lambda row: depot_polygon.buffer(tolerance).contains(Point(row['long'], row['lat'])), axis=1)
+        df['at_depot'] = df['at_depot'].replace({True: 'Yes', False: 'No'})
+        st.dataframe(df, hide_index=True,
+                     column_order=["coach", "at_depot", "lat", "long", "speed", "created_at"],
+                     column_config={
+                         "coach": st.column_config.TextColumn("Coach"),
+                         "at_depot": st.column_config.TextColumn("At Depot"),
+                         "lat": st.column_config.TextColumn("Latitude"),
+                         "long": st.column_config.TextColumn("Longitude"),
+                         "speed": st.column_config.TextColumn("Speed"),
+                         "created_at": st.column_config.DatetimeColumn("Last Transmission",
+                                                                       format="MM/DD/YY hh:mm A"),
+                     })
 
         # Display the Folium Map
         folium_static(m)
-    except:
-        st.write("Map Currently Unavailable")

@@ -18,3 +18,4 @@ gtfs-realtime-bindings
 streamlit-folium
 pgbm
 torch
+shapely

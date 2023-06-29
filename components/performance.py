@@ -23,27 +23,11 @@ def performance():
 
     # Get the active blocks from supabase
     blocks = supabase_blocks(active=False)
-    blocks['created_at'] = pd.to_datetime(blocks['created_at'])
+    blocks['created_at'] = pd.to_datetime(blocks['created_at']).dt.tz_convert(california_tz)
     blocks['date'] = blocks['created_at'].dt.strftime('%Y-%m-%d')
     blocks = blocks.sort_values('created_at')
     blocks = blocks.drop_duplicates(subset=['coach', 'date'], keep='first')
     blocks = blocks.drop(columns=['created_at'])
-    # st.dataframe(blocks, hide_index=True,
-    #              column_order=["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
-    #                            "predictedArrival"],
-    #              column_config={
-    #                  "coach": st.column_config.TextColumn("Coach"),
-    #                  "id": st.column_config.TextColumn("Route"),
-    #                  "block_id": st.column_config.TextColumn("Block"),
-    #                  "block_startTime": st.column_config.TimeColumn("Start Time", format="hh:mmA"),
-    #                  "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
-    #                  "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
-    #                                                                  format="hh:mmA"),
-    #                  "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
-    #              })
-
-    # Bus Block History with SOC and Odometer Changes
-    # st.subheader("Bus Block History with SOC and Odometer Changes")
 
     results = []
 
@@ -118,14 +102,16 @@ def performance():
                                                                      format="hh:mmA"),
                      "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
                  }
+    block_col_order = ["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
+                                    "predictedArrival", "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                                    "Miles Travelled"]
     blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
     blocks = blocks.drop(columns=['Vehicle', 'Start Odometer', 'End Odometer'])
     blocks = blocks.rename(columns={'Start SOC': 'Start SOC (%)', 'End SOC': 'End SOC (%)',
                                     'SOC Change': 'SOC Change (%)', 'Odometer Change': 'Miles Travelled'})
+    blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
     st.dataframe(blocks, hide_index=True,
-                    column_order=["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
-                                    "predictedArrival", "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
-                                    "Miles Travelled"],
+                    column_order=block_col_order,
                     column_config=block_col_config
                 )
 
@@ -207,4 +193,5 @@ def performance():
                 st.write("#### Vehicle Drive History")
 
                 st.dataframe(vehicle_df, hide_index=True,
+                             column_order=block_col_order,
                              column_config=block_col_config)
