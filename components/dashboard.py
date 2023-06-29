@@ -1,18 +1,11 @@
 # from streamlit_supabase_auth import login_form, logout_button
 
-import json
-import os
-
 import pandas as pd
 import streamlit as st
-import yaml
-# import datetime.datetime as datetime
-from datetime import datetime
-from dotenv import load_dotenv
-from supabase import create_client, Client
-import pytz
-from components.active_blocks import show_active_blocks, get_active_blocks
+
 from calls.supa_select import supabase_soc
+# import datetime.datetime as datetime
+from components.active_blocks import show_active_blocks, get_active_blocks
 
 
 def dashboard():
@@ -72,18 +65,8 @@ def dashboard():
     }
 
     # col_order = ['vehicle', 'soc', 'odometer', 'last_transmission']
-    col_order = ['vehicle', 'soc', 'status', 'odometer', 'last_transmission']
+    col_order = ['vehicle', 'soc', 'status', 'odometer', 'last_transmission', 'time_difference']
 
     st.subheader("Buses at Depot")
     df.sort_values('vehicle', inplace=True)
     st.dataframe(df, hide_index=True, column_config=column_config, column_order=col_order)
-
-    # # Display the active buses DataFrame
-    # st.subheader("Active Buses")
-    # active_buses.sort_values('vehicle', inplace=True)
-    # st.dataframe(active_buses, hide_index=True, column_config=column_config, column_order=col_order)
-    #
-    # # Display the inactive buses DataFrame
-    # st.subheader("Inactive Buses")
-    # inactive_buses.sort_values('vehicle', inplace=True)
-    # st.dataframe(inactive_buses, hide_index=True, column_config=column_config, column_order=col_order)
