@@ -5,7 +5,6 @@ import streamlit as st
 from shapely.geometry import Point, Polygon
 from streamlit_folium import folium_static
 from components.active_blocks import get_active_blocks
-from pyproj import CRS
 from calls.supa_select import supabase_active_location
 
 
@@ -39,8 +38,6 @@ def vehicle_map():
             [37.41748834361772, -121.932785425544],
             [37.42105072840012, -121.93267467387127],
         ]
-        # Specify the CRS as WGS84 (EPSG:4326)
-        depot_crs = CRS.from_epsg(4326)
 
         folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
 
