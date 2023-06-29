@@ -23,7 +23,9 @@ def dashboard():
     df['last_seen'] = df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} months " if x >= 720 else '') + \
                       df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} days " if (720 > x >= 48) else '') + \
                       df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} day " if (48 > x >= 24) else '') + \
-                      df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hours " if (1 <= x < 24) else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hours " if (2 <= x < 24) else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hour " if (1 <= x < 2) else '') + \
+ \
                       df['transmission_hrs'].apply(lambda x: f"{int(x*60)} minutes " if (x < 1) else '')
     df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
     df['transmission_hrs'] = df['transmission_hrs'].astype(int)

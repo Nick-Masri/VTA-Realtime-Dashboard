@@ -16,12 +16,15 @@ def performance():
     df = df.sort_values('vehicle')
     california_tz = pytz.timezone('US/Pacific')
     df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert(california_tz)
+    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(None)
+    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_localize(california_tz)
 
     # Route History
     st.subheader("Service History")
 
     # Get the active blocks from supabase
     blocks = supabase_blocks(active=False)
+    # st.write(blocks)
     blocks['created_at'] = pd.to_datetime(blocks['created_at']).dt.tz_convert(california_tz)
     blocks['date'] = blocks['created_at'].dt.strftime('%Y-%m-%d')
     blocks = blocks.sort_values('created_at', ascending=False)
@@ -32,7 +35,8 @@ def performance():
 
     for idx, row in blocks.iterrows():
         relevant_df = df[df['vehicle'] == row['coach']]
-        relevant_df['created_at'] = pd.to_datetime(relevant_df['created_at'])
+        # relevant_df['created_at'] = pd.to_datetime(relevant_df['created_at'])
+        relevant_df['last_transmission'] = pd.to_datetime(relevant_df['last_transmission'])
 
         block_start_time = pd.to_datetime(row['date'] + ' ' + row['block_startTime'])
         block_end_time = pd.to_datetime(row['date'] + ' ' + row['block_endTime'])
@@ -43,38 +47,78 @@ def performance():
         block_end_time = timezone.localize(block_end_time)
 
         relevant_starts = relevant_df[
-            (relevant_df['created_at'] <= block_start_time + timedelta(hours=1)) &
-            (relevant_df['created_at'] >= block_start_time - timedelta(days=1))
+            (relevant_df['last_transmission'] <= block_start_time + timedelta(hours=1)) &
+            (relevant_df['last_transmission'] >= block_start_time - timedelta(hours=5))
             ]
-        relevant_starts = relevant_starts.sort_values('created_at', ascending=False)
+        relevant_starts = relevant_starts.sort_values('last_transmission', ascending=False)
+        # st.write(relevant_starts)
 
-        # Check if block start time - 1 hour is in the future and there are entries in relevant starts
-        if block_start_time - timedelta(hours=1) > datetime.now(timezone) or relevant_starts.empty:
+        if relevant_starts.empty:
             # Omit writing SOC and odometer changes
             start_soc = None
             start_odometer = None
+            start_time_change = None
+            start_trans = None
         else:
             start_soc = relevant_starts.iloc[0]['soc']
             start_odometer = relevant_starts.iloc[0]['odometer']
 
-        relevant_ends = relevant_df[
-            (relevant_df['created_at'] >= block_end_time - timedelta(hours=2)) &
-            (relevant_df['created_at'] <= block_end_time + timedelta(days=1))
-            ]
-        relevant_ends = relevant_ends.sort_values('created_at', ascending=True)
+            # calculate time change between last_transmission and block_start_time in hours
+            start_time_change = block_start_time - relevant_starts.iloc[0]['last_transmission']
+            start_time_change = start_time_change.total_seconds() / 3600
+            start_time_change = int(start_time_change)
+            start_trans = relevant_starts.iloc[0]['last_transmission']
 
-        # Check if block end time + 1 hour is in the future
-        if block_end_time + timedelta(hours=1) > datetime.now(timezone):
+        relevant_ends = relevant_df[
+            (relevant_df['last_transmission'] >= block_end_time - timedelta(hours=2)) &
+            (relevant_df['last_transmission'] <= block_end_time + timedelta(hours=5))
+            ]
+        relevant_ends = relevant_ends.sort_values('last_transmission', ascending=True)
+
+        if relevant_ends.empty:
             # Omit writing SOC and odometer changes
             end_soc = None
             end_odometer = None
+            end_time_change = None
+            end_trans = None
         else:
-            end_soc = min(relevant_ends.iloc[0]['soc'], relevant_ends.iloc[1]['soc'])
-            end_odometer = relevant_ends.iloc[1]['odometer']
+            # end_soc = min(relevant_ends.iloc[0]['soc'], relevant_ends.iloc[1]['soc'])
+            # # get idx
+            # soc_idx = relevant_ends[relevant_ends['soc'] == end_soc].index[0]
+            soc_idx = relevant_ends.iloc[0:2]['soc'].argmin()
+            end_soc = relevant_ends.iloc[soc_idx]['soc']
 
-        soc_change = None if start_soc is None or end_soc is None else end_soc - start_soc
-        odometer_change = None if start_odometer is None or end_odometer is None else end_odometer - start_odometer
+            # st.write(soc_idx)
+            end_odometer = relevant_ends.iloc[0:2]['odometer'].max()
+            end_trans = relevant_ends.iloc[soc_idx]['last_transmission']
 
+            # calculate time change between block_end_time and first_transmission in hours
+            end_time_change = relevant_ends.iloc[soc_idx]['last_transmission'] - block_end_time
+            end_time_change = end_time_change.total_seconds() / 3600
+            end_time_change = int(end_time_change)
+
+        soc_change = None if start_soc is None or end_soc is None else abs(end_soc - start_soc)
+        miles_travelled = None if start_odometer is None or end_odometer is None else end_odometer - start_odometer
+        # Calculate kWh used
+        if start_soc is not None and end_soc is not None and miles_travelled is not None:
+            soc_change = abs(end_soc - start_soc)
+            kwh_used = soc_change / 100 * 440  # Assuming the bus has a 440 kWh capacity
+            kwh_per_mile = kwh_used / miles_travelled
+            if kwh_per_mile < 1.2 or kwh_per_mile > 4:
+                kwh_per_mile = None
+                kwh_used = None
+                # start_soc = None
+                # start_trans = None
+                # start_time_change = None
+                soc_change = None
+                end_trans = None
+                end_soc = None
+                end_time_change = None
+        else:
+            kwh_used = None
+            kwh_per_mile = None
+
+        # st.write(time_change)
         result = {
             'Vehicle': row['coach'],
             'Date': row['date'],
@@ -83,7 +127,13 @@ def performance():
             'SOC Change': soc_change,
             'Start Odometer': start_odometer,
             'End Odometer': end_odometer,
-            'Odometer Change': odometer_change
+            'Start Trans': start_trans,
+            'End Trans': end_trans,
+            "Miles Travelled": miles_travelled,
+            "kWh Used": kwh_used,
+            "kWh per Mile": kwh_per_mile,
+            'Start Time Change (hrs)': start_time_change,
+            'End Time Change (hrs)': end_time_change,
         }
         results.append(result)
 
@@ -101,14 +151,27 @@ def performance():
                                                         format="hh:mmA"),
         "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
     }
-    block_col_order = ["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
-                       "predictedArrival", "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
-                       "Miles Travelled"]
+    block_col_order = ["date", "coach", "id", "block_id",
+                       "block_startTime",
+                       "block_endTime", "predictedArrival",
+                       "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                       "Miles Travelled", "kWh per Mile",
+                       ]
+
     blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
-    blocks = blocks.drop(columns=['Vehicle', 'Start Odometer', 'End Odometer'])
-    blocks = blocks.rename(columns={'Start SOC': 'Start SOC (%)', 'End SOC': 'End SOC (%)',
-                                    'SOC Change': 'SOC Change (%)', 'Odometer Change': 'Miles Travelled'})
+    blocks = blocks.drop(columns=['Vehicle'])
     blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
+    show_details = st.checkbox("Toggle More Details")
+    if show_details:
+        block_col_order = ["date", "coach", "id", "block_id",
+                           "block_startTime",
+                           "Start Trans", "Start Time Change (hrs)",
+                            "block_endTime", "predictedArrival",
+                           "End Trans", "End Time Change (hrs)",
+                           "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                           "Start Odometer", "End Odometer", "Miles Travelled", "kWh Used", "kWh per Mile",
+                           ]
+
     st.dataframe(blocks, hide_index=True,
                  column_order=block_col_order,
                  column_config=block_col_config
