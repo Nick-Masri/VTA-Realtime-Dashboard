@@ -14,13 +14,10 @@ def get_active_blocks():
     elif supabase_df is None and swiftly_df is not None:
         return swiftly_df.copy()
     elif swiftly_df is not None and supabase_df is not None:
-        # st.write(swiftly_df)
-        # st.write(supabase_df)
-        merged_df = pd.merge(swiftly_df, supabase_df, on='coach', how='outer', suffixes=('', '_y'))
-        merged_df = merged_df.sort_values('created_at', ascending=False)
-        merged_df.drop_duplicates(subset='coach', keep='first', inplace=True)
-        # st.write(merged_df)
-        return merged_df
+        df = pd.concat([swiftly_df, supabase_df])\
+            .sort_values(['created_at', 'coach'], ascending=False)\
+            .drop_duplicates(subset='coach', keep='first')
+        return df
     else:
         return None
 

@@ -108,15 +108,7 @@ def performance():
     # st.dataframe(result_df)
 
     # merge blocks and result_df
-    blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
-    blocks = blocks.drop(columns=['Vehicle', 'Start Odometer', 'End Odometer'])
-    blocks = blocks.rename(columns={'Start SOC': 'Start SOC (%)', 'End SOC': 'End SOC (%)',
-                                    'SOC Change': 'SOC Change (%)', 'Odometer Change': 'Miles Travelled'})
-    st.dataframe(blocks, hide_index=True,
-                    column_order=["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
-                                    "predictedArrival", "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
-                                    "Miles Travelled"],
-                 column_config={
+    block_col_config = {
                      "coach": st.column_config.TextColumn("Coach"),
                      "id": st.column_config.TextColumn("Route"),
                      "block_id": st.column_config.TextColumn("Block"),
@@ -125,7 +117,17 @@ def performance():
                      "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
                                                                      format="hh:mmA"),
                      "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
-                 })
+                 }
+    blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
+    blocks = blocks.drop(columns=['Vehicle', 'Start Odometer', 'End Odometer'])
+    blocks = blocks.rename(columns={'Start SOC': 'Start SOC (%)', 'End SOC': 'End SOC (%)',
+                                    'SOC Change': 'SOC Change (%)', 'Odometer Change': 'Miles Travelled'})
+    st.dataframe(blocks, hide_index=True,
+                    column_order=["date", "coach", "id", "block_id", "block_startTime", "block_endTime",
+                                    "predictedArrival", "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                                    "Miles Travelled"],
+                    column_config=block_col_config
+                )
 
     # Get unique vehicles
     data = {"coaches": "All", "start_date": df.created_at.min(), "end_date": df.created_at.max()}
@@ -200,3 +202,9 @@ def performance():
             # st.write(filtered_df)
             st.write(f'Gain: {round(energy_gain)}%')
             st.write(f'Loss: {round(energy_loss)}%')
+            vehicle_df = blocks[blocks.coach == vehicle]
+            if not vehicle_df.empty:
+                st.write("#### Vehicle Drive History")
+
+                st.dataframe(vehicle_df, hide_index=True,
+                             column_config=block_col_config)
