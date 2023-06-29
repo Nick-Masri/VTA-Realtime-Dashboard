@@ -1,5 +1,4 @@
-import datetime
-
+from datetime import datetime
 import streamlit as st
 from calls.supa_select import supabase_blocks
 from calls.swiftly import swiftly_active_blocks
@@ -10,24 +9,27 @@ import pytz
 def get_active_blocks():
     swiftly_df = swiftly_active_blocks()
     supabase_df = supabase_blocks()
-    # st.write(swiftly_df)
-    # st.write(supabase_df)
-
+    tz = pytz.timezone('US/Pacific')
     if swiftly_df is None and supabase_df is not None:
         # filter out inactive blocks by date
-        supabase_df['block_endTime'] = pd.to_datetime(supabase_df['block_endTime'])
-        supabase_df = supabase_df[supabase_df['block_endTime'] > pd.to_datetime('now')]
+        supabase_df['predictedArrival'] = pd.to_datetime(supabase_df['predictedArrival'])
+        supabase_df = supabase_df[
+            supabase_df['predictedArrival'] > datetime.now(tz=tz)]
         return supabase_df.copy()
     elif supabase_df is None and swiftly_df is not None:
-        swiftly_df['block_endTime'] = pd.to_datetime(swiftly_df['block_endTime'])
-        swiftly_df = swiftly_df[swiftly_df['block_endTime'] > pd.to_datetime('now')]
+        swiftly_df['predictedArrival'] = pd.to_datetime(swiftly_df['predictedArrival'])
+        swiftly_df = swiftly_df[swiftly_df['predictedArrival'] > datetime.now(tz=tz)]
         return swiftly_df.copy()
     elif swiftly_df is not None and supabase_df is not None:
-        df = pd.concat([swiftly_df, supabase_df])\
-            .sort_values(['created_at', 'coach'], ascending=False)\
+        df = pd.concat([swiftly_df, supabase_df]) \
+            .sort_values(['created_at', 'coach'], ascending=False) \
             .drop_duplicates(subset='coach', keep='first')
+        # localize to pacific time
         df['predictedArrival'] = pd.to_datetime(df['predictedArrival'])
-        df = df[df['predictedArrival'] > datetime.datetime.now(tz=pytz.timezone('US/Pacific'))]
+        # need this line to remove the current (incorrect) timezone of utc
+        df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(None)
+        df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(tz)
+
         return df
     else:
         return None
@@ -39,15 +41,17 @@ def show_active_blocks(merged_df=get_active_blocks()):
         st.caption("Predicted Arrival Time from Swiftly")
         # st.write(merged_df)
         # Display the DataFrame
-        merged_df = merged_df[
-            ['coach', 'id', 'block_id', 'block_startTime', 'block_endTime', 'predictedArrival', 'soc',
-             'last_transmission', 'odometer']]
 
-        merged_df['last_transmission'] = pd.to_datetime(merged_df['last_transmission'])
+        # remove timezone again so it displays right
+        merged_df['predictedArrival'] = pd.to_datetime(merged_df['predictedArrival']).dt.tz_localize(None)
+        merged_df = merged_df.sort_values('transmission_hrs')
+        merged_df = merged_df[
+            ['coach', 'id', 'block_id', 'block_startTime', 'predictedArrival', 'soc',
+             'last_seen']]
 
         st.dataframe(merged_df, hide_index=True,
-                     column_order=['coach', 'soc', 'id', 'block_id', 'block_startTime', 'block_endTime',
-                                   'predictedArrival', 'odometer', 'last_transmission'],
+                     column_order=['coach', 'soc', 'last_seen', 'id', 'block_id', 'block_startTime', 'block_endTime',
+                                   'predictedArrival', 'odometer', ],
                      column_config={
                          "coach": st.column_config.TextColumn("Coach"),
                          "id": st.column_config.TextColumn("Route"),
@@ -67,10 +71,11 @@ def show_active_blocks(merged_df=get_active_blocks()):
                              help="Bus Odometer Reading in miles",
                              # format="%d",
                          ),
-                         "last_transmission": st.column_config.DatetimeColumn(
-                             "Last Transmission Time",
-                             help="Time of Last Transmission",
-                             format="h:mmA MM/DD/YYYY",
-                             # timezone=california_tz
-                         )
+                         # "last_transmission": st.column_config.DatetimeColumn(
+                         #     "Last Transmission Time",
+                         #     help="Time of Last Transmission",
+                         #     format="h:mmA MM/DD/YYYY",
+                         #     # timezone=california_tz
+                         # ),
+                         "last_seen": st.column_config.TextColumn("Time Offline")
                      })
