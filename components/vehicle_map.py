@@ -7,6 +7,11 @@ from streamlit_folium import folium_static
 
 from calls.supa_select import supabase_active_location
 
+def move_to_vehicle_location(pos, m):
+    # Update the map's center to the vehicle's position
+    m.location = pos
+    # Re-render the map
+    folium_static(m)
 
 def vehicle_map():
     df = supabase_active_location()
@@ -15,14 +20,14 @@ def vehicle_map():
         st.write("Map Currently Unavailable")
     else:
         st.subheader("Vehicle Map")
-        st.caption("Zoomed in On Depot")
 
         old_buses = [f'750{x}' for x in range(1, 6)]
         new_buses = [f'950{x}' for x in range(1, 6)]
         ebuses = old_buses + new_buses
 
         # Create a Folium Map object centered around the Cerone Bus Yard
-        m = folium.Map(location=[37.41845007126032, -121.93728511980153], zoom_start=14)
+        depot_center = [37.41845007126032, -121.93728511980153]
+        m = folium.Map(depot_center, zoom_start=14)
 
         # Define the polygon coordinates of the depot
         depot_coordinates = [
@@ -62,6 +67,7 @@ def vehicle_map():
         df['at_depot'] = df.apply(
             lambda row: depot_polygon.buffer(tolerance).contains(Point(row['long'], row['lat'])), axis=1)
         df['at_depot'] = df['at_depot'].replace({True: 'Yes', False: 'No'})
+
         st.dataframe(df, hide_index=True,
                      column_order=["coach", "at_depot", "lat", "long", "speed", "created_at"],
                      column_config={
@@ -75,4 +81,12 @@ def vehicle_map():
                      })
 
         # Display the Folium Map
-        folium_static(m)
+        # selectbox for location
+        df = df.sort_values(by=['coach'])
+        options = df.coach.unique().tolist() + ["Depot"]
+        location = st.selectbox("Select Location", options, index=len(options)-1)
+        if location != "Depot":
+            selected_vehicle = df[df['coach'] == location].iloc[0, :]
+            move_to_vehicle_location([selected_vehicle.lat, selected_vehicle.long], m)
+        else:
+            move_to_vehicle_location(depot_center, m)
