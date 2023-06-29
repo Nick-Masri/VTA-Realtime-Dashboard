@@ -16,7 +16,7 @@ from calls.supa_select import supabase_soc
 
 
 def dashboard():
-    # Load the active blocks DataFrame from swifly API
+    # Load the active blocks DataFrame from swiftly API
     merged_df = get_active_blocks()
 
     # get soc from supabase
