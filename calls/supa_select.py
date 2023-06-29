@@ -59,7 +59,6 @@ def supabase_soc():
 
 def supabase_soc_history():
     supabase = setup_client()
-    yesterday = datetime.today() - pd.Timedelta(days=1)
     response = supabase.table('soc').select("*").order("created_at", desc=True).execute()
     data = response.data
     df = pd.DataFrame(data)
@@ -68,6 +67,6 @@ def supabase_soc_history():
     df.sort_values(by='created_at', ascending=False, inplace=True)
 
     # Convert last_transmission column to California timezone
-    california_tz = pytz.timezone('America/Los_Angeles')
-    df['last_transmission'] = pd.to_datetime(df['last_transmission']).dt.tz_convert(california_tz)
+    california_tz = pytz.timezone('US/Pacific')
+    df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert(california_tz)
     return df.copy()

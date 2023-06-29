@@ -4,21 +4,25 @@ from calls.swiftly import swiftly_active_blocks
 import pandas as pd
 import pytz
 
-def get_active_blocks():
 
+def get_active_blocks():
     swiftly_df = swiftly_active_blocks()
     supabase_df = supabase_blocks()
 
-    if swiftly_df is None: return supabase_df.copy()
-    elif supabase_df is None: return swiftly_df.copy()
-    else:
+    if swiftly_df is None and supabase_df is not None:
+        return supabase_df.copy()
+    elif supabase_df is None and swiftly_df is not None:
+        return swiftly_df.copy()
+    elif swiftly_df is not None and supabase_df is not None:
         # st.write(swiftly_df)
         # st.write(supabase_df)
-        merged_df = pd.merge(swiftly_df, supabase_df, on='coach', how='inner', suffixes=('', '_y'))
-        # merged_df.drop_duplicates(subset='id', keep='first', inplace=True)
+        merged_df = pd.merge(swiftly_df, supabase_df, on='coach', how='outer', suffixes=('', '_y'))
+        merged_df = merged_df.sort_values('created_at', ascending=False)
+        merged_df.drop_duplicates(subset='coach', keep='first', inplace=True)
         # st.write(merged_df)
         return merged_df
-
+    else:
+        return None
 
 
 def show_active_blocks(merged_df=get_active_blocks()):
@@ -51,14 +55,14 @@ def show_active_blocks(merged_df=get_active_blocks()):
                                                             min_value=0,
                                                             max_value=100, ),
                      "odometer": st.column_config.NumberColumn(
-                        "Odometer (mi)",
-                        help="Bus Odometer Reading in miles",
-                        # format="%d",
+                         "Odometer (mi)",
+                         help="Bus Odometer Reading in miles",
+                         # format="%d",
                      ),
-                    "last_transmission": st.column_config.DatetimeColumn(
-                        "Last Transmission Time",
-                        help="Time of Last Transmission",
-                        format="hh:mmA MM/DD/YYYY",
-                        # timezone=california_tz
-                    )
+                     "last_transmission": st.column_config.DatetimeColumn(
+                         "Last Transmission Time",
+                         help="Time of Last Transmission",
+                         format="hh:mmA MM/DD/YYYY",
+                         # timezone=california_tz
+                     )
                  })
