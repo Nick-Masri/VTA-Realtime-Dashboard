@@ -19,3 +19,4 @@ streamlit-folium
 pgbm
 torch
 shapely
+zeep
