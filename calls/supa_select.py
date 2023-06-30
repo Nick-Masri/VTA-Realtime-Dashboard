@@ -46,7 +46,7 @@ def supabase_soc():
 
     # Drop duplicate entries for each vehicle, keeping only the first (most recent)
     df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
-    df = df[['soc', 'vehicle', 'odometer', 'status', 'last_transmission']]
+    df = df[['soc', 'vehicle', 'odometer', 'status', 'last_transmission', 'created_at']]
     # st.write(df)
     # Format the odometer column with thousands separator
     df['odometer'] = df['odometer'].apply(lambda x: "{:,}".format(x))

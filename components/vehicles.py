@@ -189,18 +189,4 @@ def show_vehicles():
     )
 
     # Render the scatter plot in Streamlit
-    with col1:
-        st.plotly_chart(fig, use_container_width=True)
-
-    with col2:
-        st.write("#### Gain and Loss")
-        # st.write(filtered_df)
-        st.write(f'Gain: {round(energy_gain)}%')
-        st.write(f'Loss: {round(energy_loss)}%')
-        vehicle_df = blocks[blocks.coach == vehicle]
-        if not vehicle_df.empty:
-            st.write("#### Vehicle Drive History")
-
-            st.dataframe(vehicle_df, hide_index=True,
-                         column_order=block_col_order,
-                         column_config=block_col_config)
+    st.plotly_chart(fig, use_container_width=True)
