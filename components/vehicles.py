@@ -30,7 +30,8 @@ def show_vehicles():
     california_tz = pytz.timezone('US/Pacific')
     most_recent['last_transmission'] = pd.to_datetime(most_recent['last_transmission'])
     most_recent['last_transmission'] = most_recent['last_transmission'].dt.tz_localize(utc).dt.tz_convert(california_tz)
-    st.dataframe(most_recent, hide_index=True, column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault'],
+    st.dataframe(most_recent, hide_index=True, use_container_width=True,
+                 column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault'],
                  column_config={
                      "soc": st.column_config.ProgressColumn(
                          "State of Charge",
@@ -152,7 +153,7 @@ def show_vehicles():
                                         'SOC Change': 'SOC Change (%)', 'Odometer Change': 'Miles Travelled'})
         blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
         st.subheader("Block History")
-        st.dataframe(blocks, hide_index=True,
+        st.dataframe(blocks, hide_index=True, use_container_width=True,
                      column_order=block_col_order,
                      column_config=block_col_config
                      )

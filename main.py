@@ -11,6 +11,7 @@ from components.active_blocks import show_active_blocks
 from components.vehicle_map import vehicle_map
 from components.energy_predictions import energy_predictions
 from components.vehicles import show_vehicles
+from components.chargers import show_chargers
 
 ##########################################################
 # Setup
@@ -37,9 +38,10 @@ def main():
     #             # providers=["google"]
     #         )
 
-    dash, location, vehicles, hist, api = st.tabs(["Dashboard", "Location", "Vehicles", "History",
+    dash, location, vehicles, hist, chargers = st.tabs(["Dashboard", "Location", "Vehicles", "History",
+                                                        "Chargers"
                                                # "Optimization (Future)",
-                                               "APIs",
+                                            #    "APIs",
                                                # "Energy Prediction",
                                                # # "Simulation", "Cost Analysis",
                                                # "Config"
@@ -53,18 +55,19 @@ def main():
     with vehicles:
         show_vehicles()
 
-
     with hist:
         performance()
 
+    with chargers:
+        show_chargers()
     # with opt:
     #     opt_form()
     #
     # with pred:
     #     energy_predictions()
     # #
-    with api:
-        show_apis()
+    # with api:
+    #     show_apis()
 
     # with config:
     #     show_config()

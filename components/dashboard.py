@@ -90,9 +90,9 @@ def dashboard():
     active = active.sort_values('transmission_hrs')
     active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     active = active[['vehicle', 'soc', 'last_seen', 'odometer']]
-    st.dataframe(active, hide_index=True, column_config=column_config)
+    st.dataframe(active, hide_index=True, use_container_width=True, column_config=column_config)
 
     st.subheader("Offline for more than a day")
     inactive = inactive.sort_values('transmission_hrs')
     inactive = inactive[['vehicle', 'soc', 'last_seen', 'odometer']]
-    st.dataframe(inactive, hide_index=True, column_config=column_config)
+    st.dataframe(inactive, use_container_width=True, hide_index=True, column_config=column_config)
