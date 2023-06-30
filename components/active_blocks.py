@@ -47,6 +47,7 @@ def show_active_blocks(merged_df=get_active_blocks()):
              'last_seen']]
 
         st.dataframe(merged_df, hide_index=True,
+                     use_container_width=True,
                      column_order=['coach', 'soc', 'last_seen', 'id', 'block_id', 'block_startTime', 'block_endTime',
                                    'predictedArrival', 'odometer', ],
                      column_config={
