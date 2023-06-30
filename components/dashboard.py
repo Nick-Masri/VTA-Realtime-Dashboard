@@ -8,13 +8,25 @@ import pytz
 # import datetime.datetime as datetime
 from components.active_blocks import show_active_blocks, get_active_blocks
 
-
+def scrape_status(df):
+    df['created_at'] = df['created_at'].dt.tz_convert(pytz.timezone('US/Pacific'))
+    # time with am pm 
+    last_updated = pd.to_datetime(df['created_at'].max())
+    hours = (pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - last_updated).total_seconds() / 3600
+    options = ['🟢', '🟡', '🔴']
+    emoji = options[0] if hours <= 2 else options[1] if hours <= 5 else options[2]
+    last_updated = last_updated.strftime('%m/%d/%Y %I:%M %p') 
+    st.caption(f'{emoji} Last accessed Proterra and Swiftly data  on {last_updated} PST') 
+          
 def dashboard():
     # Load the active blocks DataFrame from swiftly API
     merged_df = get_active_blocks()
 
     # get soc from supabase
     df = supabase_soc()
+    scrape_status(df)
+
+
     df['last_transmission'] = pd.to_datetime(df['last_transmission'], format='mixed')
     # must localize so that .now stays the same even on server
     utc = pytz.timezone('UTC')
@@ -29,7 +41,7 @@ def dashboard():
                       df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hour " if (1 <= x < 2) else '') + \
  \
                       df['transmission_hrs'].apply(lambda x: f"{int(x*60)} minutes " if (x < 1) else '')
-    # df['last_transmission'] = df['last_transmission'].dt.tz_convert(pytz.timezone('US/Pacific'))
+    df['last_transmission'] = df['last_transmission'].dt.tz_convert(pytz.timezone('US/Pacific'))
     df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
     df['transmission_hrs'] = df['transmission_hrs'].astype(int)
     df['last_transmission'] = pd.to_datetime(df['last_transmission'])
@@ -78,9 +90,9 @@ def dashboard():
     active = active.sort_values('transmission_hrs')
     active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     active = active[['vehicle', 'soc', 'last_seen', 'odometer']]
-    st.dataframe(active, hide_index=True, column_config=column_config)
+    st.dataframe(active, hide_index=True, use_container_width=True, column_config=column_config)
 
     st.subheader("Offline for more than a day")
     inactive = inactive.sort_values('transmission_hrs')
     inactive = inactive[['vehicle', 'soc', 'last_seen', 'odometer']]
-    st.dataframe(inactive, hide_index=True, column_config=column_config)
+    st.dataframe(inactive, use_container_width=True, hide_index=True, column_config=column_config)

@@ -158,5 +158,6 @@ def performance():
 
     st.dataframe(blocks, hide_index=True,
                  column_order=block_col_order,
-                 column_config=block_col_config
+                 column_config=block_col_config,
+                 use_container_width=True,
                  )
