@@ -37,9 +37,9 @@ def main():
     #             # providers=["google"]
     #         )
 
-    dash, location, vehicles, hist = st.tabs(["Dashboard", "Location", "Vehicles", "History",
+    dash, location, vehicles, hist, api = st.tabs(["Dashboard", "Location", "Vehicles", "History",
                                                # "Optimization (Future)",
-                                               # "APIs",
+                                               "APIs",
                                                # "Energy Prediction",
                                                # # "Simulation", "Cost Analysis",
                                                # "Config"
@@ -63,8 +63,8 @@ def main():
     # with pred:
     #     energy_predictions()
     # #
-    # with api:
-    #     show_apis()
+    with api:
+        show_apis()
 
     # with config:
     #     show_config()
