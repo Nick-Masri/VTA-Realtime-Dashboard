@@ -91,7 +91,7 @@ def vehicle_map():
 
             # display dataframe
 
-            st.dataframe(df, hide_index=True,
+            st.dataframe(df, hide_index=True, use_container_width=True,
                          column_order=["coach", "location", "lat", "long", "speed", "created_at"],
                          column_config={
                              "coach": st.column_config.TextColumn("Coach"),
