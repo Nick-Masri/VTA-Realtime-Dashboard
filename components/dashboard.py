@@ -15,10 +15,10 @@ def dashboard():
 
     # get soc from supabase
     df = supabase_soc()
-
     df['last_transmission'] = pd.to_datetime(df['last_transmission'], format='mixed')
     # must localize so that .now stays the same even on server
-    df['last_transmission'] = df['last_transmission'].dt.tz_localize(pytz.timezone('US/Pacific'))
+    utc = pytz.timezone('UTC')
+    df['last_transmission'] = df['last_transmission'].dt.tz_localize(utc)
     df['transmission_hrs'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
     df['transmission_hrs'] = df['transmission_hrs'].dt.total_seconds() / 3600
     # make transmission hrs a string, checks if years, months, days, hours, minutes

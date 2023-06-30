@@ -1,5 +1,5 @@
 from datetime import timedelta
-
+import pytz
 import pandas as pd
 import streamlit as st
 
@@ -29,7 +29,9 @@ def performance():
 
     for idx, row in blocks.iterrows():
         relevant_df = df[df['vehicle'] == row['coach']]
-        relevant_df['last_transmission'] = pd.to_datetime(relevant_df['last_transmission'])
+        utc = pytz.timezone('UTC')
+        california_tz = pytz.timezone('US/Pacific')
+        relevant_df['last_transmission'] = pd.to_datetime(relevant_df['last_transmission']).dt.tz_localize(utc).dt.tz_convert(california_tz).dt.tz_localize(None)
 
         block_start_time = pd.to_datetime(row['date'] + ' ' + row['block_startTime'])
         block_end_time = pd.to_datetime(row['date'] + ' ' + row['block_endTime'])
