@@ -26,6 +26,8 @@ def show_vehicles():
     # remove asterix from fault column
     most_recent['fault'] = most_recent['fault'].str.replace('*', '')
     st.subheader("Most Recent Transmission")
+    utc = pytz.timezone('UTC')
+    most_recent['last_transmission'] = most_recent['created_at'].dt.tz_convert(california_tz)
     st.dataframe(most_recent, hide_index=True, column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault'],
                  column_config={
                      "soc": st.column_config.ProgressColumn(

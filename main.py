@@ -37,7 +37,7 @@ def main():
     #             # providers=["google"]
     #         )
 
-    dash, location, vehicles, hist,  = st.tabs(["Dashboard", "Location", "Vehicles", "History",
+    dash, location, vehicles, hist = st.tabs(["Dashboard", "Location", "Vehicles", "History",
                                                # "Optimization (Future)",
                                                # "APIs",
                                                # "Energy Prediction",
