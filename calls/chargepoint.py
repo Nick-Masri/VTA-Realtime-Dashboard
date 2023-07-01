@@ -140,7 +140,6 @@ def chargepoint_map(df):
     positions = positions.rename(columns={'Geo.Lat': 'LAT', 'Geo.Long': 'LON'})
     positions['LAT'] = positions['LAT'].astype(float)
     positions['LON'] = positions['LON'].astype(float)
-    positions['Elevation'] = 20
 
     # Calculate the center latitude and longitude
     center_lat = (positions['LAT'].min() + positions['LAT'].max()) / 2
