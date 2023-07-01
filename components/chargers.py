@@ -55,5 +55,5 @@ def show_chargers():
                             "networkStatus": st.column_config.TextColumn("Network Status")
                             })
         
-    if not stations.empty:
-        chargepoint_map(stations)
+    # if not stations.empty:
+    #     chargepoint_map(stations)
