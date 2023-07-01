@@ -62,7 +62,6 @@ def chargepoint_active_sessions():
         charge_data = serialize_object(charging_data)
         charge_df = pd.json_normalize(charge_data)
         if len(charge_df) > 0:
-            st.write(charge_df)
             charge_df['stationName'] = name
             # st.write(charge_df)
             # TODO: add total time not charging and if it exists 
