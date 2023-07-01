@@ -32,7 +32,7 @@ def show_vehicle_history():
         block_end_time = pd.to_datetime(row['date'] + ' ' + row['block_endTime'])
 
         relevant_starts = relevant_df[
-            (relevant_df['last_transmission'] <= block_start_time + timedelta(hours=1)) &
+            (relevant_df['last_transmission'] <= block_start_time) &
             (relevant_df['last_transmission'] >= block_start_time - timedelta(hours=7))
             ]
         relevant_starts = relevant_starts.sort_values('last_transmission', ascending=False)
