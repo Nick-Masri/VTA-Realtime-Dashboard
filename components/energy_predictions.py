@@ -17,7 +17,7 @@ from scipy.stats import norm
 # TODO: fix append and other warning's it's bringing up
 import warnings
 
-
+# currently unused but functions for predicting energy consumption
 def energy_predictions():
     warnings.simplefilter(action="ignore", category=FutureWarning)
 

@@ -3,6 +3,7 @@ from calls.chargepoint import chargepoint_stations, chargepoint_active_sessions,
 import streamlit as st 
 import pandas as pd
 
+# for the page on chargers
 def show_chargers():
     stations = chargepoint_stations()
     sessions = chargepoint_active_sessions()

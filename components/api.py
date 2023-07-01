@@ -11,8 +11,7 @@ from zeep.helpers import serialize_object
 import numpy as np
 import pydeck as pdk
 
-
-
+# api tests to get new data
 def swiftly_vehicles():
     st.write("Vehicles API Fetch with Unassigned = True")
     # Define API endpoint and headers
