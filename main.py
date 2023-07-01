@@ -1,17 +1,17 @@
-# from streamlit_supabase_auth import login_form, logout_button
 import streamlit as st
-from streamlit_supabase_auth import login_form, logout_button
+# from streamlit_supabase_auth import login_form, logout_button
+# from components.config import show_config
+# from components.optimization import opt_form
+# from components.api import show_apis
+# from components.active_blocks import show_active_blocks
+# from components.energy_predictions import energy_predictions
 
-from components.api import show_apis
 from components.dashboard import dashboard
-from components.config import show_config
-from components.optimization import opt_form
 from components.history import show_history
-from components.active_blocks import show_active_blocks
 from components.vehicle_map import vehicle_map
-from components.energy_predictions import energy_predictions
 from components.vehicles import show_vehicles
 from components.chargers import show_chargers
+
 
 ##########################################################
 # Setup

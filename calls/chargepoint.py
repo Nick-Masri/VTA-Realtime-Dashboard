@@ -159,11 +159,9 @@ def chargepoint_map(df):
         layers=[pdk.Layer(
                 'ScatterplotLayer',
                 data=positions,
-                get_position='[LON, LAT, Elevation]',
+                get_position='[LON, LAT]',
                 get_color='[200, 30, 0, 160]',
                 get_radius=1.8,
-                elevation_scale=100,  # Increase the elevation scale to make the chargers stand out more
-                elevation_range=[0, 200],  # Modify the elevation range according to your preference
                 pickable=True,
                 filled=True
             )])
