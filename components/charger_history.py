@@ -16,6 +16,8 @@ def show_charger_history():
     df['totalSessionDuration'] = df['totalSessionDuration'].dt.floor('s')
     df['totalChargingDuration'] = df['totalChargingDuration'].astype(str)
     df['totalSessionDuration'] = df['totalSessionDuration'].astype(str)
+    df['startTime'] = pd.to_datetime(df['startTime']).dt.tz_convert('US/Pacific')
+    df['endTime'] = pd.to_datetime(df['endTime']).dt.tz_convert('US/Pacific')
     df = df.drop(columns=['totalChargingDuration', 'totalSessionDuration'])
     # st.write(df)
     st.dataframe(df, 
