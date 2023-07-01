@@ -5,6 +5,7 @@ from calls.swiftly import swiftly_active_blocks
 import pandas as pd
 import pytz
 
+# gets and shows the blocks currently in service
 
 def get_active_blocks():
     swiftly_df = swiftly_active_blocks()
