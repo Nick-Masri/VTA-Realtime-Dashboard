@@ -9,7 +9,7 @@ from datetime import datetime, timedelta
 from calls.supa_select import supabase_soc_history
 from calls.supa_select import supabase_blocks
 import pytz
-
+from components.vehicle_map import vehicle_map
 
 def show_vehicles():
     options = [f'750{x}' for x in range(1, 6)] + [f'950{x}' for x in range(1, 6)]
@@ -191,3 +191,7 @@ def show_vehicles():
 
     # Render the scatter plot in Streamlit
     st.plotly_chart(fig, use_container_width=True)
+
+    # Display map
+    vehicle_map(vehicle)
+

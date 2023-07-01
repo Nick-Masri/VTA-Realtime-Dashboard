@@ -38,8 +38,8 @@ def main():
     #             # providers=["google"]
     #         )
 
-    dash, location, vehicles, chargers, hist = st.tabs(["Dashboard", 
-                                                        "Location", 
+    dash, vehicles, chargers, hist = st.tabs(["Dashboard", 
+                                                        # "Location", 
                                                         "Vehicles", 
                                                         "Chargers",
                                                         "History",
@@ -51,9 +51,6 @@ def main():
                                                ])
     with dash:
         dashboard()
-
-    with location:
-        vehicle_map()
 
     with vehicles:
         show_vehicles()
