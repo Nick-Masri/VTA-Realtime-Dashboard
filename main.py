@@ -6,7 +6,7 @@ from components.api import show_apis
 from components.dashboard import dashboard
 from components.config import show_config
 from components.optimization import opt_form
-from components.performance import performance
+from components.history import show_history
 from components.active_blocks import show_active_blocks
 from components.vehicle_map import vehicle_map
 from components.energy_predictions import energy_predictions
@@ -38,8 +38,11 @@ def main():
     #             # providers=["google"]
     #         )
 
-    dash, location, vehicles, hist, chargers = st.tabs(["Dashboard", "Location", "Vehicles", "History",
-                                                        "Chargers"
+    dash, location, vehicles, chargers, hist = st.tabs(["Dashboard", 
+                                                        "Location", 
+                                                        "Vehicles", 
+                                                        "Chargers",
+                                                        "History",
                                                # "Optimization (Future)",
                                             #    "APIs",
                                                # "Energy Prediction",
@@ -56,7 +59,7 @@ def main():
         show_vehicles()
 
     with hist:
-        performance()
+        show_history()
 
     with chargers:
         show_chargers()

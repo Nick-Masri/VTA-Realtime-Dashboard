@@ -6,12 +6,7 @@ import streamlit as st
 from calls.supa_select import supabase_blocks
 from calls.supa_select import supabase_soc_history
 
-
-def performance():
-
-    # Route History
-    st.subheader("Service History")
-
+def show_vehicle_history():
     df = supabase_soc_history()
     df = df.sort_values('vehicle')
     df = df.drop(columns=['created_at'])
@@ -136,11 +131,11 @@ def performance():
         "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
     }
     block_col_order = ["date", "coach", "id", "block_id",
-                       "block_startTime",
-                       "block_endTime", "predictedArrival",
-                       "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
-                       "Miles Travelled", "kWh per Mile",
-                       ]
+                    "block_startTime",
+                    "block_endTime", "predictedArrival",
+                    "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                    "Miles Travelled", "kWh per Mile",
+                    ]
 
     blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
     blocks = blocks.drop(columns=['Vehicle'])
@@ -148,16 +143,16 @@ def performance():
     show_details = st.checkbox("Toggle More Details")
     if show_details:
         block_col_order = ["date", "coach", "id", "block_id",
-                           "block_startTime",
-                           "Start Trans", "Start Time Change (hrs)",
+                        "block_startTime",
+                        "Start Trans", "Start Time Change (hrs)",
                             "block_endTime", "predictedArrival",
-                           "End Trans", "End Time Change (hrs)",
-                           "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
-                           "Start Odometer", "End Odometer", "Miles Travelled", "kWh Used", "kWh per Mile",
-                           ]
+                        "End Trans", "End Time Change (hrs)",
+                        "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
+                        "Start Odometer", "End Odometer", "Miles Travelled", "kWh Used", "kWh per Mile",
+                        ]
 
     st.dataframe(blocks, hide_index=True,
-                 column_order=block_col_order,
-                 column_config=block_col_config,
-                 use_container_width=True,
-                 )
+                column_order=block_col_order,
+                column_config=block_col_config,
+                use_container_width=True,
+                )

@@ -63,12 +63,52 @@ def chargepoint_active_sessions():
         charge_df = pd.json_normalize(charge_data)
         if len(charge_df) > 0:
             charge_df['stationName'] = name
-            st.write(charge_df)
-        temp = {"stationName": name,
-                # "chargingData": charging_data, 
-                "Charging": True if len(charging_data) > 0 else False}
-        
+            # st.write(charge_df)
+            # TODO: add total time not charging and if it exists 
+            # then add a checkbox saying able to remove
+            charge_df['Charging'] = True
+            charge_df = charge_df[["stationName", "Energy", "startTime", "endTime", 
+                                   "totalChargingDuration", "totalSessionDuration",
+                                      "startBatteryPercentage", 
+                                      "stopBatteryPercentage", "Charging"
+                                    #   "stopBatteryPercentage", "endedBy"
+                                      ]]
+            temp = charge_df
+        else:
+            temp = {"stationName": name,
+                    # "chargingData": charging_data, 
+                    "Charging": True if len(charging_data) > 0 else False}
+            
         df = pd.concat([df, pd.DataFrame(temp, index=[0])], ignore_index=True)
+    return df
+
+
+def chargepoint_past_sessions():
+    (addresses, station_ids) = chargepoint_locations()
+    client = chargepoint_client()
+    df = pd.DataFrame()
+    # start time as a week from now
+    # end time as now
+    # use utc
+    startTime = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=7)
+    endTime = pd.Timestamp.now(tz='UTC')
+    for name, station_id in station_ids.items():
+        queryString = {
+            'stationID': station_id,
+            'fromTimeStamp': startTime,
+            'toTimeStamp': endTime,
+        }
+        data = client.service.getChargingSessionData(queryString)
+        # code = data['responseCode']
+        # text = data['responseText']
+        # more = data['MoreFlag']
+        charging_data = data['ChargingSessionData']
+        charge_data = serialize_object(charging_data)
+        charge_df = pd.json_normalize(charge_data)
+        if len(charge_df) > 0:
+            charge_df['stationName'] = name
+            
+            df = pd.concat([df, charge_df], ignore_index=True)
     return df
 
 def chargepoint_stations():
@@ -100,6 +140,7 @@ def chargepoint_map(df):
     positions = positions.rename(columns={'Geo.Lat': 'LAT', 'Geo.Long': 'LON'})
     positions['LAT'] = positions['LAT'].astype(float)
     positions['LON'] = positions['LON'].astype(float)
+    positions['Elevation'] = 20
 
     # Calculate the center latitude and longitude
     center_lat = (positions['LAT'].min() + positions['LAT'].max()) / 2
@@ -118,14 +159,15 @@ def chargepoint_map(df):
         layers=[pdk.Layer(
                 'ScatterplotLayer',
                 data=positions,
-                get_position='[LON, LAT]',
+                get_position='[LON, LAT, Elevation]',
                 get_color='[200, 30, 0, 160]',
                 get_radius=1.8,
-                elevation_scale=1,
-                elevation_range=[0, 1000],
+                elevation_scale=100,  # Increase the elevation scale to make the chargers stand out more
+                elevation_range=[0, 200],  # Modify the elevation range according to your preference
                 pickable=True,
                 filled=True
             )])
+
 
     # Render the PyDeck Deck using Streamlit
     st.pydeck_chart(deck)
