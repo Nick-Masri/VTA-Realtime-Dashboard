@@ -5,7 +5,7 @@ import streamlit as st
 
 from calls.supa_select import supabase_soc
 import pytz
-# import datetime.datetime as datetime
+from datetime import datetime
 from components.active_blocks import show_active_blocks, get_active_blocks
 
 def scrape_status(df):
@@ -27,7 +27,7 @@ def dashboard():
     scrape_status(df)
 
 
-    df['last_transmission'] = pd.to_datetime(df['last_transmission'], format='mixed')
+    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
     # must localize so that .now stays the same even on server
     utc = pytz.timezone('UTC')
     df['last_transmission'] = df['last_transmission'].dt.tz_localize(utc)

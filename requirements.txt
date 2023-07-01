@@ -20,3 +20,5 @@ pgbm
 torch
 shapely
 zeep
+pydeck
+ipywidgets
