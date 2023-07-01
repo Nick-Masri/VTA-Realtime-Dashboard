@@ -7,9 +7,11 @@ def show_chargers():
     stations = chargepoint_stations()
     sessions = chargepoint_active_sessions()
     df = pd.merge(stations, sessions, on='stationName', how='left')
+    # st.write(df)
     # Display the DataFrame
     # vehicle macs seen
-    # 70b3d52c3126
+    # 70b3d52c3126 (maybe 7505)
+    #  70b3d52c3747 (probably 9504)
     # do these link up to vehicle? I guess we will see
     df["stationName"] = df["stationName"].str.replace(' / ', ' ')
     active = df[df['Charging'] == True]
