@@ -86,7 +86,7 @@ def dashboard():
     inactive = df[df['transmission_hrs'] > 24]
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
 
-    st.subheader("Online Buses")
+    st.subheader("Idle Buses")
     active = active.sort_values('transmission_hrs')
     active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     active = active[['vehicle', 'soc', 'last_seen', 'odometer']]

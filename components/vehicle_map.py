@@ -20,23 +20,21 @@ def vehicle_map(vehicle):
     df = supabase_active_location()
     df = df[df['coach'] == vehicle]
     df = df.sort_values(by=['created_at'], ascending=False)
+    # df is only one row now
     df = df.drop_duplicates(subset=['coach'], keep='first')
     
     if len(df) == 0:
         pass
     else:
-
         # round lat and long to 6 decimal places
         df['lat'] = df['lat'].round(6)
         df['long'] = df['long'].round(6)
-
         # convert date to california time and format
         california_tz = pytz.timezone('US/Pacific')
         df['created_at'] = pd.to_datetime(df['created_at'])
         # df['created_at'] = df['created_at'].dt.tz_convert(california_tz)
         df['created_at'] = df['created_at'].dt.strftime('%m/%d/%y %I:%M %p')
         df['speed'] = df['speed'].astype(int).astype(str) + " mph"
-
                 
         # Define the polygon coordinates of the depot
         depot_coordinates = [
@@ -46,31 +44,29 @@ def vehicle_map(vehicle):
             [37.42105072840012, -121.93267467387127],
         ]
 
-        depot_polygon = Polygon(depot_coordinates)
+        # get row
+        row = df.iloc[0, :]
+        lat, long = row['lat'], row['long']
 
+        # create map
+        m = folium.Map(location=[lat, long], zoom_start=15)
+        folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
+
+        # make subheader of location
+        depot_polygon = Polygon(depot_coordinates)
         location = check_location(df, depot_polygon, vehicle)
         loc_str = f'{location}'
         st.subheader(f"Current Location: {loc_str}")
-        # st.write(df)
-        
-
-        # get the first row of the dataframe
-        # st.write(df)
-        row = df.iloc[0, :]
-
-        m = folium.Map(location=[row['lat'], row['long']], zoom_start=15)
-
-
-        folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
 
         # add markers to map
         popup_text = f"Coach: {row['coach']}" \
-                        f"<br>Latitude: {row['lat']}" \
-                        f"<br>Longitude: {row['long']}" \
+                        f"<br>Latitude: {lat}" \
+                        f"<br>Longitude: {long}" \
                         f"<br>Speed: {row['speed']} " \
                         f"<br>Last Transmission: {row['created_at']}"
-        folium.Marker(location=[row['lat'], row['long']], popup=popup_text).add_to(m)
+        folium.Marker(location=[lat, long], popup=popup_text).add_to(m)
 
+        # show the map
         folium_static(m)
 
 
@@ -79,11 +75,16 @@ def check_location(df, depot_polygon, vehicle = None):
     df['at_depot'] = df.apply(
         lambda row: row['point'].within(depot_polygon), axis=1)
     merged_df = get_active_blocks()
-    df['location'] = df.apply(
-        lambda row: 'Depot' if row['at_depot']
-        else "Block " + str(merged_df[merged_df['coach'] == row['coach']].iloc[0, 1]) if row['coach'] in merged_df[
-            'coach'].values
-        else 'Unlisted', axis=1)
+    if merged_df is not None:
+        df['location'] = df.apply(
+            lambda row: 'Depot' if row['at_depot']
+            else "Block " + str(merged_df[merged_df['coach'] == row['coach']].iloc[0, 1]) if row['coach'] in merged_df[
+                'coach'].values
+            else 'Unlisted', axis=1)
+    else:
+        df['location'] = df.apply(
+            lambda row: 'Depot' if row['at_depot']
+            else 'Unlisted', axis=1)
     
     tolerance = 0.0001
     
