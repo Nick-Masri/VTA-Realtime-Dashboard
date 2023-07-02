@@ -11,46 +11,71 @@ from calls.supa_select import supabase_blocks
 import pytz
 from components.vehicle_map import vehicle_map
 from components.history import show_history , get_block_data, show_and_format_block_history
-def show_most_recent(df):
 
-    # show most recent transmission
-    most_recent = df.drop_duplicates(subset=['vehicle'], keep='first')
+def transmission_formatting():
+
+
+    # format the columns
+    column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault']
+    column_config={
+        "soc": st.column_config.ProgressColumn(
+            "State of Charge",
+            help="Battery Percentage of Bus",
+            format="%d%%",
+            width='medium',
+            min_value=0,
+            max_value=100,
+        ),
+        "vehicle": st.column_config.TextColumn(
+            "Coach",
+            help="Bus Identification Number",
+            # format="%d",
+        ),
+        "odometer": st.column_config.NumberColumn(
+            "Odometer (mi)",
+            help="Bus Odometer Reading in miles",
+        ),
+        "last_transmission": st.column_config.DatetimeColumn(
+            "Last Transmission Time",
+            help="Time of Last Transmission",
+            format="hh:mmA MM/DD/YYYY",
+        ),
+        "status": st.column_config.CheckboxColumn("Status"),
+        "fault": st.column_config.TextColumn("Fault")
+    }
+    
+    return column_order, column_config
+
+def show_most_recent(df):
+    st.subheader("Transmissions")
+
+    # get the formatting for the columns
+    column_order, column_config = transmission_formatting()
+
+    df = df.copy()
     # remove asterix from fault column
-    most_recent['fault'] = most_recent['fault'].str.replace('*', '')
-    st.subheader("Most Recent Transmission")
+    df['fault'] = df['fault'].str.replace('*', '')
+
+    # convert last transmission to local time
     utc = pytz.timezone('UTC')
     california_tz = pytz.timezone('US/Pacific')
-    most_recent['last_transmission'] = pd.to_datetime(most_recent['last_transmission'])
-    most_recent['last_transmission'] = most_recent['last_transmission'].dt.tz_localize(utc).dt.tz_convert(california_tz)
-    st.dataframe(most_recent, hide_index=True, use_container_width=True,
-                 column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault'],
-                 column_config={
-                     "soc": st.column_config.ProgressColumn(
-                         "State of Charge",
-                         help="Battery Percentage of Bus",
-                         format="%d%%",
-                         width='medium',
-                         min_value=0,
-                         max_value=100,
-                     ),
-                     "vehicle": st.column_config.TextColumn(
-                         "Coach",
-                         help="Bus Identification Number",
-                         # format="%d",
-                     ),
-                     "odometer": st.column_config.NumberColumn(
-                         "Odometer (mi)",
-                         help="Bus Odometer Reading in miles",
-                     ),
-                     "last_transmission": st.column_config.DatetimeColumn(
-                         "Last Transmission Time",
-                         help="Time of Last Transmission",
-                         format="hh:mmA MM/DD/YYYY",
-                     ),
-                     "status": st.column_config.CheckboxColumn("Status"),
-                     "fault": st.column_config.TextColumn("Fault")
-                 }
-                 )
+    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
+    df['last_transmission'] = df['last_transmission'].dt.tz_localize(utc).dt.tz_convert(california_tz)
+    most_recent = df.drop_duplicates(subset=['vehicle'], keep='first')
+
+    # checkbox to see most recent transmission or all
+    show_all = st.checkbox('Show All')
+    if show_all:
+        st.dataframe(df, hide_index=True, use_container_width=True,
+                     column_order=column_order,
+                     column_config=column_config)
+    else:
+        st.caption("Most Recent Transmission")
+        st.dataframe(most_recent, hide_index=True, use_container_width=True,
+                     column_order=column_order,
+                     column_config=column_config)
+
+
 
 def show_vehicles():
     options = [f'750{x}' for x in range(1, 6)] + [f'950{x}' for x in range(1, 6)]
