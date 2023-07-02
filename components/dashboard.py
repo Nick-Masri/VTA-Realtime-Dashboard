@@ -5,7 +5,7 @@ import streamlit as st
 
 from calls.supa_select import supabase_soc
 import pytz
-from datetime import datetime
+import datetime
 from components.active_blocks import show_active_blocks, get_active_blocks
 
 def scrape_status(df):
