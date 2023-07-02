@@ -6,7 +6,7 @@ from zeep import Client
 from zeep.wsse.username import UsernameToken
 from zeep.helpers import serialize_object
 import pydeck as pdk
-
+import datetime
 
 @st.cache_resource
 def chargepoint_client():
@@ -44,7 +44,8 @@ def chargepoint_locations():
     }
 
     return (addresses, station_ids)
-    
+
+@st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=5))
 def chargepoint_active_sessions():
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
@@ -82,7 +83,7 @@ def chargepoint_active_sessions():
         df = pd.concat([df, pd.DataFrame(temp, index=[0])], ignore_index=True)
     return df
 
-
+@st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=12))
 def chargepoint_past_sessions():
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
@@ -111,6 +112,7 @@ def chargepoint_past_sessions():
             df = pd.concat([df, charge_df], ignore_index=True)
     return df
 
+@st.cache_data(show_spinner=False, ttl=None)
 def chargepoint_stations():
     client = chargepoint_client()
     usageSearchQuery = {
@@ -135,6 +137,7 @@ def chargepoint_stations():
 
     return df
 
+# currently unused
 def chargepoint_map(df):
     positions = df[['stationName', 'Geo.Lat', 'Geo.Long']]
     positions = positions.rename(columns={'Geo.Lat': 'LAT', 'Geo.Long': 'LON'})
