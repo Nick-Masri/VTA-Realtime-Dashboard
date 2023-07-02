@@ -108,7 +108,7 @@ def show_vehicles():
     # st.write("DF")
     # st.write(df)
     st.write("## History")
-    show_and_format_block_history(blocks, df, key="vehicle_history")
+    show_and_format_block_history(blocks, df, key="vehicle")
     
     fig = px.area(filtered_df,
                   x=filtered_df['created_at'],
