@@ -31,7 +31,7 @@ def show_history():
         df = supabase_soc_history()
         df = df.sort_values('vehicle')
         blocks = get_block_data()
-        show_and_format_block_history(blocks, df, key="all_history")
+        show_and_format_block_history(blocks, df, key="all")
 
 
 def show_and_format_block_history(blocks, df, key):
@@ -175,7 +175,8 @@ def show_and_format_block_history(blocks, df, key):
                     use_container_width=True,
                     )
         
-        ste.download_button("Download Data as CSV", blocks, "block_history.csv")
+        if key == "all":
+            ste.download_button("Download Data as CSV", blocks, "block_history.csv")
 
 # shows the charging history of the ebuses
 def show_charger_history():      
