@@ -4,8 +4,9 @@ from supabase import create_client, Client
 import os
 from datetime import datetime
 import pytz
+import streamlit as st
 
-
+@st.cache_resource
 def setup_client():
     # (if local) Load environment variables
     load_dotenv()

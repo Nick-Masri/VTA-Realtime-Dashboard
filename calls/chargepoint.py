@@ -8,7 +8,7 @@ from zeep.helpers import serialize_object
 import pydeck as pdk
 
 
-
+@st.cache_resource
 def chargepoint_client():
     # Import required modules
     from dotenv import load_dotenv
