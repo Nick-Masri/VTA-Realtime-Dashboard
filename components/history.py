@@ -6,6 +6,7 @@ import pandas as pd
 from calls.chargepoint import chargepoint_past_sessions
 from calls.supa_select import supabase_blocks
 from calls.supa_select import supabase_soc_history
+import streamlit_ext as ste
 
 def get_block_data():
 
@@ -173,7 +174,8 @@ def show_and_format_block_history(blocks, df, key):
                     column_config=block_col_config,
                     use_container_width=True,
                     )
-    
+        
+        ste.download_button("Download Data as CSV", blocks, "block_history.csv")
 
 # shows the charging history of the ebuses
 def show_charger_history():      
@@ -222,3 +224,11 @@ def show_charger_history():
                         "energy",
                         "endedBy",
                     ])
+
+    # make time_zone unaware
+    df_copy = df.copy()
+    df_copy['startTime'] = df_copy['startTime'].dt.tz_localize(None)
+    df_copy['endTime'] = df_copy['endTime'].dt.tz_localize(None)
+    df_copy['startTime'] = df_copy['startTime'].dt.strftime('%m/%d/%y %I:%M %p')
+    df_copy['endTime'] = df_copy['endTime'].dt.strftime('%m/%d/%y %I:%M %p')
+    ste.download_button("Download Data as CSV", df_copy, "charging_history.csv")
