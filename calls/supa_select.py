@@ -2,7 +2,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from supabase import create_client, Client
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import streamlit as st
 
@@ -15,7 +15,7 @@ def setup_client():
     supabase: Client = create_client(url, key)
     return supabase
 
-
+@st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
 def supabase_blocks(active=True):
     supabase = setup_client()
     response = supabase.table('block_history').select("*").order("created_at", desc=True).execute()
@@ -33,7 +33,7 @@ def supabase_blocks(active=True):
     else:
         return None
 
-
+@st.cache_data(show_spinner=False, ttl=timedelta(minutes=5))
 def supabase_soc():
     supabase = setup_client()
     yesterday = datetime.today() - pd.Timedelta(days=1)
@@ -54,7 +54,7 @@ def supabase_soc():
 
     return df.copy()
 
-
+@st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_active_location():
     supabase = setup_client()
     response = supabase.table('location').select("*").order("created_at", desc=True).execute()
@@ -70,7 +70,7 @@ def supabase_active_location():
     else:
         return None
 
-
+@st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_soc_history(vehicle=None):
     supabase = setup_client()
     if vehicle is None:
