@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-
+import streamlit as st
 
 def swiftly_call_active_blocks():
     # Fetch data from API
