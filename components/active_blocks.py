@@ -21,7 +21,7 @@ def get_active_blocks():
             .drop_duplicates(subset='coach', keep='first')
         df = df.copy()
 
-    df['predictedArrival'] = pd.to_datetime(df['predictedArrival'])
+    df['predictedArrival'] = pd.to_datetime(df['predictedArrival'], errors='coerce')
     # need this line to remove the current (incorrect) timezone of utc
     df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(None)
     df['predictedArrival'] = df['predictedArrival'].dt.tz_localize(tz)
