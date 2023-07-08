@@ -4,6 +4,7 @@ import streamlit as st
 import pandas as pd
 import data
 
+
 # for the page on chargers
 def show_chargers():
     stations = chargepoint_stations()
