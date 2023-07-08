@@ -159,6 +159,7 @@ def show_and_format_block_history(blocks, df, key):
         blocks = blocks.drop(columns=['Vehicle'])
         blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
         show_details = st.checkbox("Toggle More Details", key=key)
+        exclude_na = st.checkbox("Exclude Rows with Unmatched Start or End SOC", key = key + "nan" )
         if show_details:
             block_col_order = ["date", "coach", "id", "block_id",
                             "block_startTime",
@@ -168,6 +169,8 @@ def show_and_format_block_history(blocks, df, key):
                             "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
                             "Start Odometer", "End Odometer", "Miles Travelled", "kWh Used", "kWh per Mile",
                             ]
+        if exclude_na: 
+            blocks = blocks.dropna(how='any')
 
         st.dataframe(blocks, hide_index=True,
                     column_order=block_col_order,

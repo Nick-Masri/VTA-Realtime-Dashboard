@@ -1,16 +1,10 @@
 import streamlit as st
 # from streamlit_supabase_auth import login_form, logout_button
-# from components.config import show_config
-# from components.optimization import opt_form
-# from components.api import show_apis
-# from components.active_blocks import show_active_blocks
-# from components.energy_predictions import energy_predictions
 
-from components.dashboard import dashboard
-from components.history import show_history
-from components.vehicle_map import vehicle_map
-from components.vehicles import show_vehicles
-from components.chargers import show_chargers
+from page_files.dashboard import dashboard
+from page_files.history import show_history
+from page_files.vehicles import show_vehicles
+from page_files.chargers import show_chargers
 
 
 ##########################################################
@@ -43,7 +37,7 @@ def main():
                                                         "Vehicles", 
                                                         "Chargers",
                                                         "History",
-                                               # "Optimization (Future)",
+                                            #    "Optimization (Future)",
                                             #    "APIs",
                                                # "Energy Prediction",
                                                # # "Simulation", "Cost Analysis",
