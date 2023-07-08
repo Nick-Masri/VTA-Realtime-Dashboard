@@ -18,9 +18,9 @@ def move_to_vehicle_location(pos, m):
 def vehicle_map(vehicle):
     # TODO: rewrite to just select vehicle
     df = supabase_active_location()
-    df = df[df['coach'] == vehicle]
+    if vehicle in df['coach'].unique().tolist():
+        df = df[df['coach'] == vehicle]
     df = df.sort_values(by=['created_at'], ascending=False)
-    # df is only one row now
     df = df.drop_duplicates(subset=['coach'], keep='first')
     
     if len(df) == 0:

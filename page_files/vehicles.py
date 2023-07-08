@@ -10,7 +10,7 @@ from calls.supa_select import supabase_soc_history
 from calls.supa_select import supabase_blocks
 import pytz
 from components.vehicle_map import vehicle_map
-from components.history import show_history , get_block_data, show_and_format_block_history
+from page_files.history import show_history , get_block_data, show_and_format_block_history
 
 def transmission_formatting():
 
