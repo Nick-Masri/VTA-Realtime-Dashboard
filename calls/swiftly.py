@@ -2,6 +2,7 @@ import requests
 import pandas as pd
 import streamlit as st
 import datetime
+import data
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=5))
 def swiftly_call_active_blocks():
@@ -47,7 +48,7 @@ def swiftly_active_blocks():
         df['predictedArrival'] = df['block_endTime'] + pd.to_timedelta(df['schAdhSecs'], unit='s')
         df['coach'] = df['coach'].astype(str)
         df.drop(columns=['isPredictable', 'schAdhSecs'], inplace=True)
-        ebuses = [f'750{i}' for i in range(1, 6)] + [f'950{i}' for i in range(1, 6)]
+        ebuses = data.ebuses
         df = df[df.coach.isin(ebuses)]
 
         return df
