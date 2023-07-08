@@ -7,7 +7,7 @@ from calls.chargepoint import chargepoint_past_sessions
 from calls.supa_select import supabase_blocks
 from calls.supa_select import supabase_soc_history
 import streamlit_ext as ste
-
+import data
 def get_block_data():
 
     # Get the active blocks from supabase
@@ -198,10 +198,18 @@ def show_charger_history():
     df['endTime'] = pd.to_datetime(df['endTime']).dt.tz_convert('US/Pacific')
     df = df.drop(columns=['totalChargingDuration', 'totalSessionDuration'])
     # st.write(df)
+    df['vehicle'] = df['vehiclePortMAC'].map(data.mac_to_name)
+    # replace stopBatteryPercent with start + energy if stopBatteryPercent is less than start
+    df['stopBatteryPercentage'] = np.where(df['stopBatteryPercentage'] < df['startBatteryPercentage'],
+                                            df['startBatteryPercentage'] + df['Energy'] / 440 * 100,
+                                            df['stopBatteryPercentage'])
+    df['stopBatteryPercentage'] = df['stopBatteryPercentage'].astype(int)
+
     st.dataframe(df, 
                  hide_index=True, use_container_width=True,
                  column_config={
                      "stationName": st.column_config.TextColumn("Station Name"),
+                        "vehicle": st.column_config.TextColumn("Coach"),
                      "startTime": st.column_config.DatetimeColumn("Start Time", 
                                                                   format="MM/DD/YY hh:mmA"),
                         "endTime": st.column_config.DatetimeColumn("End Time",
@@ -219,6 +227,7 @@ def show_charger_history():
                  },
                     column_order=[
                         "stationName",
+                        "vehicle",
                         "startTime",
                         "endTime",
                         # "totalChargingDuration",
