@@ -44,7 +44,7 @@ def dashboard():
     df['last_transmission'] = df['last_transmission'].dt.tz_convert(pytz.timezone('US/Pacific'))
     df['last_transmission'] = df['last_transmission'].dt.strftime('%I:%M:%S %p %m/%d/%Y')
     df['transmission_hrs'] = df['transmission_hrs'].astype(int)
-    df['last_transmission'] = pd.to_datetime(df['last_transmission'])
+    # df['last_transmission'] = pd.to_datetime(df['last_transmission'])
 
     if merged_df is not None:
         merged_df = pd.merge(merged_df, df, left_on='coach', right_on='vehicle',
