@@ -17,9 +17,13 @@ def show_chargers():
     
     if not active.empty:
         # match vehicle macs to vehicle names
-        
-        mac_to_name = data.mac_to_name
-        active['vehicle'] = active['vehiclePortMAC'].map(mac_to_name)
+        # currently experiencing issue, need to come back when working
+        # TODO: fix KeyError: 'vehiclePortMAC'
+        try:
+            active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name)
+        except KeyError:
+            # st.write("KeyError: 'vehiclePortMAC'")
+            pass
 
         active['startTime'] = pd.to_datetime(active['startTime'])
         active['startTime'] = active['startTime'].dt.tz_convert('US/Pacific')
@@ -34,6 +38,7 @@ def show_chargers():
                             "stationName": st.column_config.TextColumn("Station Name"),
                             "startTime": st.column_config.DatetimeColumn("Start Time",
                                                                             format="MM/DD/YY hh:mmA"),
+                            "vehicle": st.column_config.TextColumn("Coach"),
                             "totalChargingDuration": st.column_config.TextColumn("Charging Duration"),
                             "totalSessionDuration": st.column_config.TextColumn("Session Duration"),
                             "startBatteryPercentage": st.column_config.ProgressColumn("Start SOC (%)",
