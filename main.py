@@ -15,35 +15,35 @@ def main():
 
     st.title("VTA Electric Bus Data Portal")
     
-    # try: 
-    dash, vehicles, hist = st.tabs(["Dashboard", 
-                                                # "Location", 
-                                                "Vehicles", 
-                                                # "Chargers",
-                                                "History",
-                                    #    "Optimization (Future)",
-                                    #    "APIs",
-                                        # "Energy Prediction",
-                                        # # "Simulation", "Cost Analysis",
-                                        # "Config"
-                                        ])
-    
-    with dash:
-        dashboard()
+    try: 
+        dash, vehicles, hist = st.tabs(["Dashboard", 
+                                                    # "Location", 
+                                                    "Vehicles", 
+                                                    # "Chargers",
+                                                    "History",
+                                        #    "Optimization (Future)",
+                                        #    "APIs",
+                                            # "Energy Prediction",
+                                            # # "Simulation", "Cost Analysis",
+                                            # "Config"
+                                            ])
+        
+        with dash:
+            dashboard()
 
-    with vehicles:
-        show_vehicles()
+        with vehicles:
+            show_vehicles()
 
-    with hist:
-        show_history()
+        with hist:
+            show_history()
 
-        # with chargers:
-        #     show_chargers()
+            # with chargers:
+            #     show_chargers()
 
-    # # if the app is down
-    # except Exception as e:
-    #     st.error(f"Sorry, the app is down. We are working to resolve this issue as soon as possible.")
-    #     send_email(f"Error: {e}")
+    # if the app is down
+    except Exception as e:
+        st.error(f"Sorry, the app is down. We are working to resolve this issue as soon as possible.")
+        send_email(f"Error: {e}")
 
     # with opt:
     #     opt_form()
