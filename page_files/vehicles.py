@@ -78,11 +78,16 @@ def show_most_recent(df):
 
 
 def show_vehicles():
+    
     options = [f'750{x}' for x in range(1, 6)] + [f'950{x}' for x in range(1, 6)]
 
     vehicle = st.selectbox(
         'Select a vehicle',
         options)
+    
+
+    # Display map
+    vehicle_map(vehicle)
 
     df = supabase_soc_history(vehicle=vehicle)
     df['created_at'] = pd.to_datetime(df['created_at'])
@@ -125,7 +130,4 @@ def show_vehicles():
 
     # Render the scatter plot in Streamlit
     st.plotly_chart(fig, use_container_width=True)
-
-    # Display map
-    vehicle_map(vehicle)
 
