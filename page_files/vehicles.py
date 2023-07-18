@@ -108,10 +108,6 @@ def show_vehicles():
     # Get the active blocks from supabase
     blocks = get_block_data()
     blocks = blocks[blocks['coach'] == vehicle]
-    # st.write("BLOCKS")
-    # st.write(blocks)
-    # st.write("DF")
-    # st.write(df)
     st.write("## History")
     show_and_format_block_history(blocks, df, key="vehicle")
     

@@ -29,7 +29,6 @@ for vehicle in df['vehicle'].unique():
         previous_entry = vehicle_df.iloc[i - 1]
         next_entry = vehicle_df.iloc[i + 1]
         vehicle_str = str(vehicle)
-        # only for now since these two are the only ones being used
         if vehicle_str == '9504' or vehicle_str == '7505':
             relevant_indices.append(vehicle_df.index[i])  
         else:

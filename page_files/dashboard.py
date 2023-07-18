@@ -7,7 +7,7 @@ from calls.supa_select import supabase_soc
 import pytz
 from components.active_blocks import show_active_blocks, get_active_blocks
 
-def scrape_status(df):
+def show_data_scraping_status(df):
     df['created_at'] = df['created_at'].dt.tz_convert(pytz.timezone('US/Pacific'))
     # time with am pm 
     last_updated = pd.to_datetime(df['created_at'].max())
@@ -23,8 +23,7 @@ def dashboard():
 
     # get soc from supabase
     df = supabase_soc()
-    scrape_status(df)
-
+    show_data_scraping_status(df)
 
     df['last_transmission'] = pd.to_datetime(df['last_transmission'])
     # must localize so that .now stays the same even on server
@@ -89,10 +88,11 @@ def dashboard():
     st.subheader("Idle Buses")
     active = active.sort_values('transmission_hrs')
     active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
-    active = active[['vehicle', 'soc', 'last_seen', 'odometer']]
+    active = active[['vehicle', 'soc', 'last_seen']]
     st.dataframe(active, hide_index=True, use_container_width=True, column_config=column_config)
 
     st.subheader("Offline for more than a day")
     inactive = inactive.sort_values('transmission_hrs')
-    inactive = inactive[['vehicle', 'soc', 'last_seen', 'odometer']]
+    inactive = inactive[['vehicle', 'last_seen', 'odometer']]
+    
     st.dataframe(inactive, use_container_width=True, hide_index=True, column_config=column_config)

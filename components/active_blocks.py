@@ -56,7 +56,7 @@ def show_active_blocks(merged_df=get_active_blocks()):
                          "id": st.column_config.TextColumn("Route"),
                          "block_id": st.column_config.TextColumn("Block"),
                          "block_startTime": st.column_config.TimeColumn("Start Time", format="hh:mmA"),
-                         "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
+                        #  "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
                          "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
                                                                          format="hh:mmA"),
                          "soc": st.column_config.ProgressColumn("State of Charge",

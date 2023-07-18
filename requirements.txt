@@ -1,9 +1,8 @@
-streamlit~=1.24.1
+streamlit~=1.24.0
 supabase~=1.0.3
 numpy
 pandas
 plotly
-gurobipy>=10.0.0
 requests
 python-dotenv~=1.0.0
 matplotlib
@@ -13,13 +12,13 @@ pytz
 PyYAML
 folium
 openpyxl
-protobuf3-to-dict
-gtfs-realtime-bindings
 streamlit-folium
-pgbm
 torch
 shapely
 zeep
 pydeck
 ipywidgets
 streamlit-ext
+# unused
+pgbm
+gurobipy>=10.0.0
