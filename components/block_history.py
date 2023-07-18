@@ -80,24 +80,29 @@ def show_and_format_block_history(blocks, df, key):
 
         soc_change = None if start_soc is None or end_soc is None else abs(end_soc - start_soc)
         miles_travelled = None if start_odometer is None or end_odometer is None else end_odometer - start_odometer
+
         # Calculate kWh used
         if start_soc is not None and end_soc is not None and miles_travelled is not None:
             soc_change = abs(end_soc - start_soc)
             kwh_used = soc_change / 100 * 440  # Assuming the bus has a 440 kWh capacity
-            kwh_per_mile = kwh_used / miles_travelled
-            if kwh_per_mile < 1 or kwh_per_mile > 4:
-                kwh_per_mile = None
-                kwh_used = None
-                # start_soc = None
-                # start_trans = None
-                # start_time_change = None
-                soc_change = None
-                # end_trans = None
-                end_soc = None
-                # end_time_change = None
-        else:
-            kwh_used = None
             kwh_per_mile = None
+            if miles_travelled < 40:
+                miles_travelled = None
+
+            if miles_travelled is not None:
+                kwh_per_mile = kwh_used / miles_travelled
+
+                if kwh_per_mile < 1 or kwh_per_mile > 4:
+                    kwh_per_mile = None
+                    kwh_used = None
+                    soc_change = None
+                    end_soc = None
+  
+        if  miles_travelled is None:
+            kwh_per_mile = None
+            kwh_used = None
+            soc_change = None
+            end_soc = None
 
         result = {
             'Vehicle': row['coach'],
