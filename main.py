@@ -11,6 +11,7 @@ from calls.error_email import send_email
 ##########################################################
 
 def main():
+    st.set_page_config(page_title="VTA E-Bus Portal", page_icon="🚌")
 
     st.title("VTA Electric Bus Data Portal")
     
@@ -58,7 +59,6 @@ def main():
 
 
 if __name__ == "__main__":
-    st.set_page_config(page_title="VTA E-Bus Portal", page_icon="🚌")
 
     main()
 
