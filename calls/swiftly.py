@@ -44,7 +44,9 @@ def swiftly_active_blocks():
         df = df[
             ['id', 'block_id', 'block_startTime', 'block_endTime', 'coach', 'isPredictable', 'schAdhSecs']]
 
-        df['block_endTime'] = pd.to_datetime(df['block_endTime'], errors='coerce')
+        # st.write(df['block_endTime'])
+        df['block_endTime'] = pd.to_datetime(df['block_endTime'], errors='coerce', format='%H:%M:%S')
+        # st.write(df['block_endTime'])
         df['predictedArrival'] = df['block_endTime'] + pd.to_timedelta(df['schAdhSecs'], unit='s')
         df['coach'] = df['coach'].astype(str)
         df.drop(columns=['isPredictable', 'schAdhSecs'], inplace=True)

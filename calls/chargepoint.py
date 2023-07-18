@@ -82,7 +82,7 @@ def chargepoint_active_sessions():
         df = pd.concat([df, pd.DataFrame(temp, index=[0])], ignore_index=True)
     return df
 
-@st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=12))
+@st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
 def chargepoint_past_sessions():
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
@@ -111,7 +111,7 @@ def chargepoint_past_sessions():
             df = pd.concat([df, charge_df], ignore_index=True)
     return df
 
-@st.cache_data(show_spinner=False, ttl=None)
+@st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
 def chargepoint_stations():
     client = chargepoint_client()
     usageSearchQuery = {
