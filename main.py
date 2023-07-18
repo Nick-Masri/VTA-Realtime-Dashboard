@@ -11,7 +11,8 @@ from calls.error_email import send_email
 ##########################################################
 
 def main():
-    st.title("E-Bus Data Portal")
+
+    st.title("VTA Electric Bus Data Portal")
     
     try: 
         dash, vehicles, chargers, hist = st.tabs(["Dashboard", 
@@ -57,6 +58,7 @@ def main():
 
 
 if __name__ == "__main__":
+    st.set_page_config(page_title="VTA E-Bus Portal", page_icon="🚌")
 
     main()
 
