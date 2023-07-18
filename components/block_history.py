@@ -143,8 +143,6 @@ def show_and_format_block_history(blocks, df, key):
                     "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
                     "Miles Travelled", "kWh per Mile",
                     ]
-    # st.write(blocks)
-    # st.write(result_df)
     if len(result_df) > 0 and len(blocks) > 0:
         blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
         blocks = blocks.drop(columns=['Vehicle'])
@@ -171,3 +169,4 @@ def show_and_format_block_history(blocks, df, key):
         
         if key == "all":
             ste.download_button("Download Data as CSV", blocks, "block_history.csv")
+            ste.download_button("Download Data as Excel", blocks, "block_history.xslx")
