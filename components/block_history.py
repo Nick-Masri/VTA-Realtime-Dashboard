@@ -24,8 +24,8 @@ def show_and_format_block_history(blocks, df, key):
     results = []
 
     for idx, row in blocks.iterrows():
-        temp_df = df.copy()
-        relevant_df = temp_df[temp_df['vehicle'] == row['coach']]
+        relevant_df = df[df['vehicle'] == row['coach']]
+        relevant_df = relevant_df.copy()
         utc = pytz.timezone('UTC')
         california_tz = pytz.timezone('US/Pacific')
         relevant_df['last_transmission'] = pd.to_datetime(relevant_df['last_transmission']).dt.tz_localize(utc).dt.tz_convert(california_tz).dt.tz_localize(None)
