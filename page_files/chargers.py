@@ -13,17 +13,20 @@ def show_chargers():
     
     df["stationName"] = df["stationName"].str.replace(' / ', ' ')
     active = df[df['Charging'] == True]
+
     inactive = df[df['Charging'] == False]
     
     if not active.empty:
         # match vehicle macs to vehicle names
         # currently experiencing issue, need to come back when working
         # TODO: fix KeyError: 'vehiclePortMAC'
+        active = active.copy()
         try:
             active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name)
         except KeyError:
             # st.write("KeyError: 'vehiclePortMAC'")
             pass
+        
 
         active['startTime'] = pd.to_datetime(active['startTime'])
         active['startTime'] = active['startTime'].dt.tz_convert('US/Pacific')
@@ -52,6 +55,7 @@ def show_chargers():
                         })
         
     if not inactive.empty:
+        inactive = inactive.copy()
         st.subheader("Inactive ")
         st.dataframe(inactive, hide_index=True, use_container_width=True,
                         column_order=[
