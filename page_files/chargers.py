@@ -22,7 +22,7 @@ def show_chargers():
     if not active.empty:
         active = active.copy()
         active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name)
-        active['vehicle'] = active['vehicle'].fillna('Unknown')k
+        active['vehicle'] = active['vehicle'].fillna('Unknown')
 
         active['startTime'] = pd.to_datetime(active['startTime'])
         active['startTime'] = active['startTime'].dt.tz_convert('US/Pacific')
