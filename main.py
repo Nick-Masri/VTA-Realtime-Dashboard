@@ -42,8 +42,8 @@ def main():
 
     # if the app is down
     except Exception as e:
-        st.error(f"Sorry, the app is down. We are working to resolve this issue as soon as possible.")
-        send_email(f"Error: {e}")
+        # st.error(f"Sorry, the app is down. We are working to resolve this issue as soon as possible.")
+        # send_email(f"Error: {e}")
 
     # with opt:
     #     opt_form()
