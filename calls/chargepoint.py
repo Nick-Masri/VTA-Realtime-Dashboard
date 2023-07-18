@@ -80,7 +80,7 @@ def chargepoint_active_sessions():
                     "Charging": True if len(charging_data) > 0 else False}
             
         df = pd.concat([df, pd.DataFrame(temp, index=[0])], ignore_index=True)
-    return df
+    return df.copy()
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
 def chargepoint_past_sessions():
