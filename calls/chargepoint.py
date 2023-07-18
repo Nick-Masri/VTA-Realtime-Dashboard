@@ -71,7 +71,8 @@ def chargepoint_active_sessions():
             charge_df = charge_df[["stationName", "Energy", "startTime", "endTime", 
                                    "totalChargingDuration", "totalSessionDuration",
                                       "startBatteryPercentage", 
-                                      "stopBatteryPercentage", "Charging"
+                                      "stopBatteryPercentage", "Charging",
+                                      "vehiclePortMAC"
                                     #   "stopBatteryPercentage", "endedBy"
                                       ]]
             temp = charge_df
