@@ -3,6 +3,7 @@ from page_files.dashboard import dashboard
 from page_files.history import show_history
 from page_files.vehicles import show_vehicles
 from page_files.chargers import show_chargers
+from calls.error_email import send_email
 
 
 ##########################################################
@@ -11,29 +12,37 @@ from page_files.chargers import show_chargers
 
 def main():
     st.title("E-Bus Data Portal")
+    
+    try: 
+        dash, vehicles, chargers, hist = st.tabs(["Dashboard", 
+                                                    # "Location", 
+                                                    "Vehicles", 
+                                                    "Chargers",
+                                                    "History",
+                                        #    "Optimization (Future)",
+                                        #    "APIs",
+                                            # "Energy Prediction",
+                                            # # "Simulation", "Cost Analysis",
+                                            # "Config"
+                                            ])
+        
+        with dash:
+            dashboard()
 
-    dash, vehicles, chargers, hist = st.tabs(["Dashboard", 
-                                                        # "Location", 
-                                                        "Vehicles", 
-                                                        "Chargers",
-                                                        "History",
-                                            #    "Optimization (Future)",
-                                            #    "APIs",
-                                               # "Energy Prediction",
-                                               # # "Simulation", "Cost Analysis",
-                                               # "Config"
-                                               ])
-    with dash:
-        dashboard()
+        with vehicles:
+            show_vehicles()
 
-    with vehicles:
-        show_vehicles()
+        with hist:
+            show_history()
 
-    with hist:
-        show_history()
+        with chargers:
+            show_chargers()
 
-    with chargers:
-        show_chargers()
+    # if the app is down
+    except Exception as e:
+        st.error(f"Sorry, the app is down. We are working to resolve this issue as soon as possible.")
+        send_email(f"Error: {e}")
+
     # with opt:
     #     opt_form()
     #
