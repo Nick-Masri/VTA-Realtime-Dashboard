@@ -19,6 +19,3 @@ zeep
 pydeck
 ipywidgets
 streamlit-ext
-# unused
-pgbm
-gurobipy>=10.0.0
