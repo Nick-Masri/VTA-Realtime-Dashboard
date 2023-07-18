@@ -1,14 +1,12 @@
 import supabase
 import pandas as pd
-from dotenv import load_dotenv
 from supabase import create_client, Client
 import os
+import streamlit as st
 
-
-# (if local) Load environment variables
-load_dotenv()
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
+# TODO: modify to not delete ones stored as start or end trans
+url = st.secrets["SUPABASE_URL"]
+key = st.secrets["SUPABASE_KEY"]
 supabase: Client = create_client(url, key)
 
 # Fetch all entries from the database table

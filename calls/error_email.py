@@ -1,13 +1,13 @@
 import smtplib
 from email.mime.text import MIMEText
 import os
-from dotenv import load_dotenv
 import datetime
 import streamlit as st
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=60))
 def send_email(error):
-    load_dotenv()
+    email = st.secrets["EMAIL"]
+    password = st.secrets["EMAIL_PASSWD"]
     email = os.getenv('EMAIL')
     password = os.getenv('EMAIL_PASSWD')
     msg = MIMEText(str(error))
