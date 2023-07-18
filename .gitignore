@@ -1,5 +1,3 @@
 __pycache__
-.env
 venv/
-.streamlit/secrets.toml
 .streamlit/secrets.toml
