@@ -1,21 +1,21 @@
+# essentials
 streamlit~=1.24.0
 supabase~=1.0.3
 numpy
 pandas
+# ploting (vehicles soc graph)
 plotly
-requests
-python-dotenv~=1.0.0
-matplotlib
-seaborn
-streamlit-supabase-auth
-pytz
-PyYAML
-folium
-openpyxl
-streamlit-folium
-torch
+# shapely
 shapely
+# geospatial
+streamlit-folium
+folium
+# env
+python-dotenv~=1.0.0
+# data
+requests
 zeep
-pydeck
-ipywidgets
+# timezone
+pytz
+# download button
 streamlit-ext
