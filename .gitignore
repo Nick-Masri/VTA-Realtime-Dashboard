@@ -1,9 +1,5 @@
-token.json
-ML_Models/model1.pt
-df.pkl
-ML_Models/model2.pt
-allRoutes.xslx
 __pycache__
 .env
 venv/
+.streamlit/secrets.toml
 .streamlit/secrets.toml

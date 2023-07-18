@@ -1,12 +1,7 @@
-import datetime
-
 import streamlit as st
 from helper import convert_time_index
 import json
-import os
-
 import pandas as pd
-import streamlit as st
 import yaml
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -25,9 +20,8 @@ def opt_form():
 
     # Load environment variables
     load_dotenv()
-
-    url: str = os.environ.get("SUPABASE_URL")
-    key: str = os.environ.get("SUPABASE_KEY")
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
 
     response = supabase.table('soc').select("*").execute()

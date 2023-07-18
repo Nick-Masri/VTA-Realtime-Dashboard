@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-import streamlit as st
 import os
 from zeep import Client
 from zeep.wsse.username import UsernameToken
@@ -15,9 +14,8 @@ def chargepoint_client():
 
     # Load environment variables
     load_dotenv()
-    license_key = os.getenv('CHARGEPOINT_KEY')
-    password = os.getenv('CHARGEPOINT_PASSWD')
-
+    license_key = st.secrets["CHARGEPOINT_KEY"]
+    password = st.secrets["CHARGEPOINT_PASSWD"]
     # Define the API endpoint URL
     url = "https://webservices.chargepoint.com/cp_api_5.1.wsdl"
 
