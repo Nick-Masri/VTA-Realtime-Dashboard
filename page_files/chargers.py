@@ -10,10 +10,10 @@ def show_chargers():
     sessions = chargepoint_active_sessions()
     df = pd.merge(stations, sessions, on='stationName', how='left')
     
-    df["stationName"] = df["stationName"].str.replace(' / ', ' ')
+    df["stationName"] = df["stationName"].str.replace(' / ', ' ', regex=False)
 
     # Replace the desired format in the 'Station' column
-    df["stationName"] = df["stationName"].str.replace(r"VTA STATION #(\d+)", r"Station \1")
+    df["stationName"] = df["stationName"].str.replace(r"VTA STATION #(\d+)", r"Station \1", regex=True)
 
     active = df[df['Charging'] == True]
 
@@ -53,9 +53,9 @@ def show_chargers():
         st.subheader("Currently Charging")
         st.dataframe(active, hide_index=True, use_container_width=True,
                         column_order=[
-                            "stationName","startTime", "vehicle", "startBatteryPercentage", 
-                             "currentSOC", "totalChargingDuration", "totalSessionDuration",
-                             'Idle'
+                            "stationName","Idle", "startTime", "vehicle", "startBatteryPercentage", 
+                             "currentSOC", "totalChargingDuration", 
+                            #  "totalSessionDuration",
                                         ],
                         column_config={
                             "stationName": st.column_config.TextColumn("Station"),

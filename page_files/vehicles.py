@@ -54,7 +54,7 @@ def show_most_recent(df):
 
     df = df.copy()
     # remove asterix from fault column
-    df['fault'] = df['fault'].str.replace('*', '')
+    df['fault'] = df['fault'].str.replace('*', '', regex=False)
 
     # convert last transmission to local time
     utc = pytz.timezone('UTC')
