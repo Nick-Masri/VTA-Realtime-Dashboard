@@ -33,7 +33,8 @@ def dashboard():
     df['transmission_hrs'] = pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - df['last_transmission']
     df['transmission_hrs'] = df['transmission_hrs'].dt.total_seconds() / 3600
     # make transmission hrs a string, checks if years, months, days, hours, minutes
-    df['last_seen'] = df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} months " if x >= 720 else '') + \
+    df['last_seen'] = df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} months " if x >= 1440 else '') + \
+                      df['transmission_hrs'].apply(lambda x: f"{int((x % 8760) // 720)} month " if (1440 > x >= 720) else '') + \
                       df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} days " if (720 > x >= 48) else '') + \
                       df['transmission_hrs'].apply(lambda x: f"{int((x % 720) // 24)} day " if (48 > x >= 24) else '') + \
                       df['transmission_hrs'].apply(lambda x: f"{int(x % 24)} hours " if (2 <= x < 24) else '') + \
@@ -84,7 +85,7 @@ def dashboard():
     active = df[df['transmission_hrs'] <= 24]
     inactive = df[df['transmission_hrs'] > 24]
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
-
+        
     st.subheader("Idle Buses")
     active = active.sort_values('transmission_hrs')
     active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
