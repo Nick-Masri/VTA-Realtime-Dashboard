@@ -79,19 +79,20 @@ def opt_form():
         submit = st.form_submit_button("Submit")
 
     if submit:
-        # st.write("Buses:")
-        selected_buses = edited_buses_df[edited_buses_df.Select == True].vehicle.values.tolist()
-        # st.write("Blocks")
-        selected_blocks = edited_blocks_df[edited_blocks_df.Select == True].block_id.values.tolist()
-        # st.write("Chargers:")
-        selected_chargers = edited_chargers_df[edited_chargers_df.Select == True].stationName.values.tolist()
+        selected_buses = edited_buses_df[edited_buses_df.Select == True]
+        selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
+        selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
         col1, col2, col3 = st.columns(3)
         col1.write("Buses:")
-        col1.write(selected_buses)
+        selected_buses = selected_buses[['vehicle', 'soc', 'status']]
+        col1.dataframe(selected_buses, hide_index=True, use_container_width=True)
         col2.write("Blocks:")
-        col2.write(selected_blocks)
+        selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
+        selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
+        col2.dataframe(selected_blocks, hide_index=True, use_container_width=True)
         col3.write("Chargers:")
-        col3.write(selected_chargers)
+        selected_chargers = selected_chargers[['stationName']]
+        col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
         # solve
         # st.write("Solving...")
