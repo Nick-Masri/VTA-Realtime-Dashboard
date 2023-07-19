@@ -16,58 +16,62 @@ def move_to_vehicle_location(pos, m):
 
 
 def vehicle_map(vehicle):
-    # TODO: rewrite to just select vehicle
     df = supabase_active_location()
-    if vehicle in df['coach'].unique().tolist():
-        df = df[df['coach'] == vehicle]
-    df = df.sort_values(by=['created_at'], ascending=False)
-    df = df.drop_duplicates(subset=['coach'], keep='first')
-    
-    if len(df) == 0:
+
+    if df.empty:
         pass
     else:
-        # round lat and long to 6 decimal places
-        df['lat'] = df['lat'].round(6)
-        df['long'] = df['long'].round(6)
-        # convert date to california time and format
-        california_tz = pytz.timezone('US/Pacific')
-        df['created_at'] = pd.to_datetime(df['created_at'])
-        # df['created_at'] = df['created_at'].dt.tz_convert(california_tz)
-        df['created_at'] = df['created_at'].dt.strftime('%m/%d/%y %I:%M %p')
-        df['speed'] = df['speed'].astype(int).astype(str) + " mph"
-                
-        # Define the polygon coordinates of the depot
-        depot_coordinates = [
-            [37.41999522465071, -121.93949237138894],
-            [37.41649876221854, -121.93810797555054],
-            [37.41748834361772, -121.932785425544],
-            [37.42105072840012, -121.93267467387127],
-        ]
+        if vehicle in df['coach'].unique().tolist():
+            df = df[df['coach'] == vehicle]
+            df = df.sort_values(by=['created_at'], ascending=False)
+            df = df.drop_duplicates(subset=['coach'], keep='first')
 
-        # get row
-        row = df.iloc[0, :]
-        lat, long = row['lat'], row['long']
+            # round lat and long to 6 decimal places
+            df['lat'] = df['lat'].round(6)
+            df['long'] = df['long'].round(6)
+            # convert date to california time and format
+            california_tz = pytz.timezone('US/Pacific')
+            df['created_at'] = pd.to_datetime(df['created_at'])
+            # df['created_at'] = df['created_at'].dt.tz_convert(california_tz)
+            df['created_at'] = df['created_at'].dt.strftime('%m/%d/%y %I:%M %p')
+            df['speed'] = df['speed'].astype(int).astype(str) + " mph"
+                    
+            # Define the polygon coordinates of the depot
+            depot_coordinates = [
+                [37.41999522465071, -121.93949237138894],
+                [37.41649876221854, -121.93810797555054],
+                [37.41748834361772, -121.932785425544],
+                [37.42105072840012, -121.93267467387127],
+            ]
 
-        # create map
-        m = folium.Map(location=[lat, long], zoom_start=15)
-        folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
+            # get row
+            row = df.iloc[0, :]
+            lat, long = row['lat'], row['long']
 
-        # make subheader of location
-        depot_polygon = Polygon(depot_coordinates)
-        location = check_location(df, depot_polygon, vehicle)
-        loc_str = f'{location}'
-        st.subheader(f"Current Location: {loc_str}")
+            # create map
+            m = folium.Map(location=[lat, long], zoom_start=15)
+            folium.Polygon(depot_coordinates, color='red', fill=True, fill_color='red', fill_opacity=0.2).add_to(m)
 
-        # add markers to map
-        popup_text = f"Coach: {row['coach']}" \
-                        f"<br>Latitude: {lat}" \
-                        f"<br>Longitude: {long}" \
-                        f"<br>Speed: {row['speed']} " \
-                        f"<br>Last Transmission: {row['created_at']}"
-        folium.Marker(location=[lat, long], popup=popup_text).add_to(m)
+            # make subheader of location
+            depot_polygon = Polygon(depot_coordinates)
+            location = check_location(df, depot_polygon, vehicle)
+            loc_str = f'{location}'
+            st.subheader(f"Current Location: {loc_str}")
 
-        # show the map
-        folium_static(m)
+            # add markers to map
+            popup_text = f"Coach: {row['coach']}" \
+                            f"<br>Latitude: {lat}" \
+                            f"<br>Longitude: {long}" \
+                            f"<br>Speed: {row['speed']} " \
+                            f"<br>Last Transmission: {row['created_at']}"
+            folium.Marker(location=[lat, long], popup=popup_text).add_to(m)
+
+            # show the map
+            if loc_str != 'Unlisted':
+                folium_static(m)
+        else:
+            st.warning("Location data for this vehicle is not available.")
+           
 
 
 def check_location(df, depot_polygon, vehicle = None):
