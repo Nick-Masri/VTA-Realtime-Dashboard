@@ -5,7 +5,6 @@ import pandas as pd
 from calls.supa_select import supabase_blocks
 import streamlit_ext as ste
 from datetime import datetime
-from io import BytesIO
 
 
 def get_block_data():
@@ -209,11 +208,5 @@ def show_and_format_block_history(blocks, df, key):
             # Export the data to CSV and Excel formats
             csv_data = blocks.to_csv(index=False, encoding='utf-8')
 
-            # Use BytesIO to create an in-memory buffer for the Excel data
-            excel_buffer = BytesIO()
-            blocks.to_excel(excel_buffer, index=False, encoding='utf-8')
-            excel_data = excel_buffer.getvalue()
-
             # Provide download buttons for both CSV and Excel
             ste.download_button("Download Data as CSV", csv_data, "block_history.csv")
-            ste.download_button("Download Data as Excel", excel_data, "block_history.xlsx")
