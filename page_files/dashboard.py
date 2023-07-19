@@ -88,6 +88,7 @@ def dashboard():
     idle = idle.sort_values('transmission_hrs')
     idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     idle = idle[['vehicle', 'soc', 'last_seen']]
+    idle['soc'] = idle['soc'].astype(int)
     st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
     # Offline
@@ -96,7 +97,7 @@ def dashboard():
     offline = offline[['vehicle', 'last_seen', 'odometer']]
     st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
 
-
+@st.cache_data(ttl=pd.Timedelta(minutes=5), show_spinner="Grabbing data...")
 def get_overview_df():
     # initialize
     serving, charging, idle, offline, df = None, None, None, None, None
@@ -108,28 +109,25 @@ def get_overview_df():
 
     # add transmission hrs and last seen
     df = make_transmission_hrs(df)
-    # df['status'] = None
 
     # make serving df
-    if active_blocks is not None:
+    if active_blocks is not None and not active_blocks.empty:
         df = pd.merge(active_blocks, df, left_on='coach', right_on='vehicle',
                              how='left', suffixes=('', '_y'), indicator=True)
         df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df.rename(columns={'_merge': 'active'}, inplace=True)
         serving = df[df['active'] == 'both']
-        serving_vehicles = serving['vehicle'].unique().tolist()
-        df['active'] = True
+        df['active'] = df.apply(lambda row: True if row['active'] =='both' else False, axis=1)
     else:
         df['active'] = False
 
     # make charging df
-    if charging_sessions is not None:
+    if charging_sessions is not None and not charging_sessions.empty:
         df = pd.merge(df, charging_sessions, left_on='vehicle', right_on='vehicle', how='left', suffixes=('', '_y'), indicator=True)
         df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df.rename(columns={'_merge': 'charging'}, inplace=True)
         charging = df[df['charging'] == 'both']
-        charging_vehicles = charging['vehicle'].unique().tolist()
-        df['charging'] = True
+        df['charging'] = df.apply(lambda row: True if row['charging'] =='both' else False, axis=1)
     else:
         df['charging'] = False
 
