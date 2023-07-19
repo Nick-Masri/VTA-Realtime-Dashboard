@@ -97,7 +97,7 @@ def dashboard():
     offline = offline[['vehicle', 'last_seen', 'odometer']]
     st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
 
-@st.cache_data(ttl=pd.Timedelta(minutes=5))
+@st.cache_data(ttl=pd.Timedelta(minutes=5), show_spinner="Grabbing data...")
 def get_overview_df():
     # initialize
     serving, charging, idle, offline, df = None, None, None, None, None
