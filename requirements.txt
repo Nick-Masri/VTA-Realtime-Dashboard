@@ -19,3 +19,5 @@ zeep
 pytz
 # download button
 streamlit-ext==0.1.7
+# navbar
+streamlit-option-menu
