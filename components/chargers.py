@@ -19,7 +19,7 @@ def format_active_sessions(active):
     active['totalChargingDuration'] = pd.to_timedelta(active['totalChargingDuration'])
     active['totalSessionDuration'] = pd.to_timedelta(active['totalSessionDuration'])
     # make idle column. True if totalSessionDuration - totalChargingDuration > 90 seconds or if soc is 100
-    active['Idle'] = (active['totalSessionDuration'] - active['totalChargingDuration'] > pd.Timedelta(seconds=90)) | (active['currentSOC'] == 100)
+    active['Idle'] = active['totalSessionDuration'] - active['totalChargingDuration'] > pd.Timedelta(seconds=90) | (active['currentSOC'] == 100)
         
     # TODO: this seems like a hacky way to do this / redundant
     # Format as days, hours, minutes

@@ -45,6 +45,7 @@ def show_charger_history():
                                             df['startBatteryPercentage'] + df['Energy'] / 440 * 100,
                                             df['stopBatteryPercentage'])
     df['stopBatteryPercentage'] = df['stopBatteryPercentage'].astype(int)
+    df['stationName'] = df['stationName'].str.replace('VTA STATION #', 'Station ')
     st.dataframe(df, 
                  hide_index=True, use_container_width=True,
                  column_config={
@@ -86,4 +87,6 @@ def show_charger_history():
     df_copy['endTime'] = df_copy['endTime'].dt.tz_localize(None)
     df_copy['startTime'] = df_copy['startTime'].dt.strftime('%m/%d/%y %I:%M %p')
     df_copy['endTime'] = df_copy['endTime'].dt.strftime('%m/%d/%y %I:%M %p')
-    ste.download_button("Download Data as CSV", df_copy, "charging_history.csv")
+    csv = df_copy.to_csv(index=False).encode('utf-8')
+    ste.download_button("Download Data as CSV", csv, "charging_history.csv")
+

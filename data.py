@@ -1,3 +1,5 @@
+import streamlit as st
+
 mac_to_name = {
             '70b3d52c3126': '7501',
             '70b3d52c3127': '7501',
@@ -23,3 +25,32 @@ mac_to_name = {
 
 
 ebuses = [f'750{i}' for i in range(1, 6)] + [f'950{i}' for i in range(1, 6)]
+
+
+# dataframe string formatting
+dash_column_config = {
+    "soc": st.column_config.ProgressColumn(
+        "State of Charge",
+        help="Battery Percentage of Bus",
+        format="%d%%",
+        width='medium',
+        min_value=0,
+        max_value=100,
+    ),
+    "vehicle": st.column_config.TextColumn(
+        "Coach",
+        help="Bus Identification Number",
+        # format="%d",
+        disabled=True,
+    ),
+    "odometer": st.column_config.NumberColumn(
+        "Odometer (mi)",
+        help="Bus Odometer Reading in miles",
+    ),
+    "last_transmission": st.column_config.DatetimeColumn(
+        "Last Transmission Time",
+        help="Time of Last Transmission",
+        format="hh:mmA MM/DD/YYYY",
+    ),
+    "status": st.column_config.CheckboxColumn("Status")
+}
