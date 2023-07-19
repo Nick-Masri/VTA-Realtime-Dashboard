@@ -3,7 +3,6 @@ from calls.chargepoint import chargepoint_past_sessions
 import pandas as pd
 import data
 import numpy as np
-import streamlit_ext as ste
 
 def format_duration(col):
 
@@ -88,5 +87,5 @@ def show_charger_history():
     df_copy['startTime'] = df_copy['startTime'].dt.strftime('%m/%d/%y %I:%M %p')
     df_copy['endTime'] = df_copy['endTime'].dt.strftime('%m/%d/%y %I:%M %p')
     csv = df_copy.to_csv(index=False).encode('utf-8')
-    ste.download_button("Download Data as CSV", csv, "charging_history.csv")
+    st.download_button("Download Data as CSV", csv, "charging_history.csv")
 
