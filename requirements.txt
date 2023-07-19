@@ -18,4 +18,5 @@ zeep
 # timezone
 pytz
 # download button
+io
 streamlit-ext==0.1.7
