@@ -15,13 +15,16 @@ def get_block_data():
     blocks = blocks.sort_values('created_at', ascending=False)
     blocks = blocks.drop_duplicates(subset=['date', 'coach'], keep='first')
     blocks = blocks.drop(columns=['created_at'])
-
+    
     return blocks.copy()
 
 def create_delta(week_val, all_val):
-    res = round((week_val - all_val) / all_val * 100)
-    res = str(res) + "%"
-    return res
+    if week_val is None or all_val is None:
+        return None
+    else:
+        res = round((week_val - all_val) / all_val * 100)
+        res = str(res) + "%"
+        return res
 
 def show_and_format_block_history(blocks, df, key):
 
@@ -151,12 +154,15 @@ def show_and_format_block_history(blocks, df, key):
         blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
         blocks = blocks.drop(columns=['Vehicle'])
         blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
+        blocks['kWh per Mile'] = blocks['kWh per Mile'].astype(float)
+        blocks['kWh Used'] = blocks['kWh Used'].astype(float)
+        blocks['Miles Travelled'] = blocks['Miles Travelled'].astype(float)
 
         st.write("### Metrics")
 
         st.caption("Since June 30, 2023")
         col1, col2, col3, col4 = st.columns(4)
-        avg_kwh_per_mile = blocks['kWh per Mile'].mean().round(2)
+        avg_kwh_per_mile = round(blocks['kWh per Mile'].mean(), 2)
         total_kwh_used = blocks['kWh Used'].sum().astype(int)
         total_miles_travelled = blocks['Miles Travelled'].sum().astype(int)
         total_blocks_served = len(blocks)
@@ -170,7 +176,7 @@ def show_and_format_block_history(blocks, df, key):
         blocks['Date'] = pd.to_datetime(blocks['Date'])
         diff = datetime.today() - timedelta(days=7)
         this_week = blocks[blocks['Date'] >= diff]
-        week_avg_kwh_per_mile = this_week['kWh per Mile'].mean().round(2)
+        week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
         week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
         week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
         week_total_blocks_served = len(this_week)
