@@ -17,28 +17,24 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History"], 
-    # icons from bootstrap icons
-    # "cpu" for optimization
-    icons=["speedometer", "bus-front", "battery-charging", "clock-history", ],
+    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History", "Optimization"], 
+    icons=["speedometer", "bus-front", "battery-charging", "clock-history", "cpu"],
     styles = {
-    "container": {"padding": "0", "background-color": "#f0ece2", "border-radius": "10px"},
-    # "menu-title": {"font-weight": "bold", "margin": "10px"},
-    # "menu-icon": {"color": "black", "font-size": "24px", "margin-right": "5px"},
+    "container": {"padding": "0", "background-color": "#f0ece2", "border-radius": "3px"},
     "nav": {"margin": "0", "padding": "0"},
     "nav-item": {"display": "inline-block", "margin": "0", "list-style-type": "none"},
     "nav-link": {
-        "padding": "10px 20px",
+        "padding": "10px 0px",
         "text-align": "center",
         "border-radius": "10px 10px 0 0",  # Rounded only at the top
         # "margin": "0 5px",
         "color": "black",
-        "font-size": "16px",
+        "font-size": "14px",
         "text-decoration": "none",
         # make a little darker when not hovered to show it's clickable
         "background-color": "#e5e5e5",
     },
-    "icon": {"color": "black", "font-size": "24px", "position": "relative", "top": "3px"},
+    "icon": {"color": "black", "font-size": "18px", "position": "relative", "top": "2px", "left": "-2px", "display":"inline"},
     "nav-link-selected": {"background-color": "#50c878", "font-weight":  "normal"},
     },
 
@@ -51,37 +47,8 @@ def main():
         show_chargers()
     elif selected == "History":
         show_history()
-    # elif selected == "Optimization (Future)":
-    #     opt_form()
-
-
-    # dash, vehicles, hist = st.tabs(["Dashboard", 
-    #                                             # "Location", 
-    #                                             "Vehicles", 
-    #                                             # "Chargers",
-    #                                             "History",
-    #                                     # "Optimization (Future)",
-    #                                 #    "APIs",
-    #                                     # "Energy Prediction",
-    #                                     # # "Simulation", "Cost Analysis",
-    #                                     # "Config"
-    #                                     ])
-    
-    # with dash:
-    #     dashboard()
-
-    # with vehicles:
-    #     show_vehicles()
-
-    # with hist:
-    #     show_history()
-
-    # with opt:
-    #     opt_form()
-
-
-    # with chargers:
-    #     show_chargers()
+    elif selected == "Optimization":
+        opt_form()
 
 
 
