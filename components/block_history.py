@@ -4,7 +4,7 @@ import pytz
 import pandas as pd
 from calls.supa_select import supabase_blocks
 import streamlit_ext as ste
-
+from datetime import datetime
 
 def get_block_data():
 
@@ -18,6 +18,10 @@ def get_block_data():
 
     return blocks.copy()
 
+def create_delta(week_val, all_val):
+    res = round((week_val - all_val) / all_val * 100)
+    res = str(res) + "%"
+    return res
 
 def show_and_format_block_history(blocks, df, key):
 
@@ -147,6 +151,35 @@ def show_and_format_block_history(blocks, df, key):
         blocks = blocks.merge(result_df, left_on=['coach', 'date'], right_on=['Vehicle', 'Date'], how='left')
         blocks = blocks.drop(columns=['Vehicle'])
         blocks = blocks.sort_values(by=['date', 'block_startTime'], ascending=False)
+
+        st.write("### Metrics")
+
+        st.caption("Since June 30, 2023")
+        col1, col2, col3, col4 = st.columns(4)
+        avg_kwh_per_mile = blocks['kWh per Mile'].mean().round(2)
+        total_kwh_used = blocks['kWh Used'].sum().astype(int)
+        total_miles_travelled = blocks['Miles Travelled'].sum().astype(int)
+        total_blocks_served = len(blocks)
+        col1.metric("Average kWh / mile", avg_kwh_per_mile)
+        col2.metric("Total kWh Used", total_kwh_used)
+        col3.metric("Total Miles Travelled", total_miles_travelled)
+        col4.metric("Blocks Served", total_blocks_served)
+
+        st.caption("This Week")
+        col1, col2, col3, col4 = st.columns(4)
+        blocks['Date'] = pd.to_datetime(blocks['Date'])
+        diff = datetime.today() - timedelta(days=7)
+        this_week = blocks[blocks['Date'] >= diff]
+        week_avg_kwh_per_mile = this_week['kWh per Mile'].mean().round(2)
+        week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
+        week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
+        week_total_blocks_served = len(this_week)
+        col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile))
+        col2.metric("Total kWh Used", week_total_kwh_used)
+        col3.metric("Total Miles Travelled", week_total_miles_travelled)
+        col4.metric("Blocks Served", week_total_blocks_served)
+
+        st.write("### Data")
         show_details = st.checkbox("Toggle More Details", key=key)
         exclude_na = st.checkbox("Exclude Rows with Unmatched Start or End SOC", key = key + "nan" )
         if show_details:
@@ -160,7 +193,10 @@ def show_and_format_block_history(blocks, df, key):
                             ]
         if exclude_na: 
             blocks = blocks.dropna(how='any')
-
+        
+        # filter out before 2023-06-30 since db was down
+        blocks['Date'] = pd.to_datetime(blocks['Date'])
+        blocks = blocks[blocks['Date'] >= datetime(2023, 6, 30)]
         st.dataframe(blocks, hide_index=True,
                     column_order=block_col_order,
                     column_config=block_col_config,

@@ -75,7 +75,7 @@ def dashboard():
         show_active_blocks(merged_df)
 
     # Actively Charging
-    if charging is not None:
+    if charging is not None and not charging.empty:
         st.subheader("Currently Charging")
         st.dataframe(charging, hide_index=True, use_container_width=True, 
                         column_config=column_config)
