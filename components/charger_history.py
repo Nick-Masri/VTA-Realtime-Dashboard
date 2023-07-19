@@ -45,6 +45,7 @@ def show_charger_history():
                                             df['startBatteryPercentage'] + df['Energy'] / 440 * 100,
                                             df['stopBatteryPercentage'])
     df['stopBatteryPercentage'] = df['stopBatteryPercentage'].astype(int)
+    df['stationName'] = df['stationName'].str.replace('VTA STATION #', 'Station ')
     st.dataframe(df, 
                  hide_index=True, use_container_width=True,
                  column_config={
