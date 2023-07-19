@@ -17,10 +17,10 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History", "Optimization"], 
-    icons=["speedometer", "bus-front", "battery-charging", "clock-history", "cpu"],
+    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History"], 
+    icons=["speedometer", "bus-front", "battery-charging", "clock-history"],
     styles = {
-    "container": {"padding": "0", "background-color": "#f0ece2", "border-radius": "3px"},
+    "container": {"padding": "0", "background-color": "white", "border-radius": "3px"},
     "nav": {"margin": "0", "padding": "0"},
     "nav-item": {"display": "inline-block", "margin": "0", "list-style-type": "none"},
     "nav-link": {
@@ -47,8 +47,8 @@ def main():
         show_chargers()
     elif selected == "History":
         show_history()
-    elif selected == "Optimization":
-        opt_form()
+    # elif selected == "Optimization":
+    #     opt_form()
 
 
 
