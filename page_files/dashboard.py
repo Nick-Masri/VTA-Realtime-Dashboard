@@ -117,6 +117,7 @@ def get_overview_df():
         df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df.rename(columns={'_merge': 'active'}, inplace=True)
         serving = df[df['active'] == 'both']
+        serving = serving.copy()
         df['active'] = df.apply(lambda row: True if row['active'] =='both' else False, axis=1)
     else:
         df['active'] = False
@@ -127,6 +128,7 @@ def get_overview_df():
         df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df.rename(columns={'_merge': 'charging'}, inplace=True)
         charging = df[df['charging'] == 'both']
+        charging = charging.copy()
         df['charging'] = df.apply(lambda row: True if row['charging'] =='both' else False, axis=1)
     else:
         df['charging'] = False
@@ -140,6 +142,8 @@ def get_overview_df():
     df['offline'] = df['transmission_hrs'] > 24
     idle = df[df['idle'] == True]
     offline = df[df['offline'] == True]
+    idle = idle.copy()
+    offline = offline.copy()
     # make status based on charging, active, idle and offilne columns
     df['status'] = df.apply(lambda row: 'Driving' if row['active'] 
                             else 'Charging' if row['charging'] 
@@ -148,4 +152,4 @@ def get_overview_df():
                             else None, axis=1)
     df = df.drop(columns=['active', 'charging', 'idle', 'offline'])
 
-    return serving, charging, idle, offline, df
+    return serving, charging, idle, offline, df.copy()
