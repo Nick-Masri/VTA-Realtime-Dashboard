@@ -3,7 +3,6 @@ from datetime import timedelta
 import pytz
 import pandas as pd
 from calls.supa_select import supabase_blocks
-import streamlit_ext as ste
 from datetime import datetime
 
 
@@ -209,4 +208,4 @@ def show_and_format_block_history(blocks, df, key):
             csv_data = blocks.to_csv(index=False, encoding='utf-8')
 
             # Provide download buttons for both CSV and Excel
-            ste.download_button("Download Data as CSV", csv_data, "block_history.csv")
+            st.download_button("Download Data as CSV", csv_data, "block_history.csv")
