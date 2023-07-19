@@ -3,7 +3,7 @@ st.set_page_config(page_title="VTA E-Bus Portal", page_icon="🚌")
 from page_files.dashboard import dashboard
 from page_files.history import show_history
 from page_files.vehicles import show_vehicles
-# from page_files.chargers import show_chargers
+from page_files.chargers import show_chargers
 from components.optimization import opt_form
 from calls.error_email import send_email
 from streamlit_option_menu import option_menu
@@ -17,9 +17,10 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    selected = option_menu(None, ["Dashboard" , "Vehicles", "History"], 
+    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History"], 
     # icons from bootstrap icons
-    icons=["speedometer", "bus-front", "clock-history", "cpu"],
+    # "cpu" for optimization
+    icons=["speedometer", "bus-front", "battery-charging", "clock-history", ],
     styles = {
     "container": {"padding": "0", "background-color": "#f0ece2", "border-radius": "10px"},
     # "menu-title": {"font-weight": "bold", "margin": "10px"},
@@ -46,6 +47,8 @@ def main():
         dashboard()
     elif selected == "Vehicles":
         show_vehicles()
+    elif selected == "Chargers":
+        show_chargers()
     elif selected == "History":
         show_history()
     # elif selected == "Optimization (Future)":
