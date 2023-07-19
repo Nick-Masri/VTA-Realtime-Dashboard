@@ -166,7 +166,7 @@ def show_and_format_block_history(blocks, df, key):
         col3.metric("Total Miles Travelled", total_miles_travelled)
         col4.metric("Blocks Served", total_blocks_served)
 
-        st.caption("This Week")
+        st.caption("Last 7 Days")
         col1, col2, col3, col4 = st.columns(4)
         blocks['Date'] = pd.to_datetime(blocks['Date'])
         diff = datetime.today() - timedelta(days=7)
