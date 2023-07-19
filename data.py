@@ -41,6 +41,7 @@ dash_column_config = {
         "Coach",
         help="Bus Identification Number",
         # format="%d",
+        disabled=True,
     ),
     "odometer": st.column_config.NumberColumn(
         "Odometer (mi)",

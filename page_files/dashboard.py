@@ -56,51 +56,98 @@ def make_transmission_hrs(df):
     return df
 
 def dashboard():
-    # Load the active blocks DataFrame from swiftly API
-    active_blocks = get_active_blocks()
 
-    # get soc from supabase
-    df = supabase_soc()
+    # get necessary data
+    serving, charging, idle, offline, df = get_overview_df()
+
+    # show data scraping status
     show_data_scraping_status(df)
 
     # get column config
     column_config = data.dash_column_config
 
-    # get charging sessions from chargepoint
-    charging_sessions = get_charging_sessions()
-    if charging_sessions is not None:
-        merged_df = pd.merge(df, charging_sessions, left_on='vehicle', right_on='vehicle', how='inner', suffixes=('', '_y'))
-        merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
-        # remove vehicles that are charging from df
-        df = df[~df['vehicle'].isin(merged_df['vehicle'])]
-        st.subheader("Currently Charging")
-        st.dataframe(merged_df, hide_index=True, use_container_width=True, 
-                        column_config=column_config)
-        
-    # add transmission hrs and last seen
-    df = make_transmission_hrs(df)
-
-    if active_blocks is not None:
-        merged_df = pd.merge(active_blocks, df, left_on='coach', right_on='vehicle',
-                             how='inner', suffixes=('', '_y'))
+    # Active Blocks
+    if serving is not None:
+        merged_df = pd.merge(serving, df, left_on='coach', right_on='vehicle',
+                                how='inner', suffixes=('', '_y'))
         merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df = df[~df['vehicle'].isin(merged_df['vehicle'])]
-
         show_active_blocks(merged_df)
 
-    df.sort_values(['last_transmission', 'status', 'vehicle'], ascending=False, inplace=True)
-    active = df[df['transmission_hrs'] <= 24]
-    inactive = df[df['transmission_hrs'] > 24]
+    # Actively Charging
+    if charging is not None:
+        st.subheader("Currently Charging")
+        st.dataframe(charging, hide_index=True, use_container_width=True, 
+                        column_config=column_config)
+
+    # Idle and Offline
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
         
+    # Idle
     st.subheader("Idle Buses")
-    active = active.sort_values('transmission_hrs')
-    active.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
-    active = active[['vehicle', 'soc', 'last_seen']]
-    st.dataframe(active, hide_index=True, use_container_width=True, column_config=column_config)
+    idle = idle.sort_values('transmission_hrs')
+    idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
+    idle = idle[['vehicle', 'soc', 'last_seen']]
+    st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
+    # Offline
     st.subheader("Offline for more than a day")
-    inactive = inactive.sort_values('transmission_hrs')
-    inactive = inactive[['vehicle', 'last_seen', 'odometer']]
-    
-    st.dataframe(inactive, use_container_width=True, hide_index=True, column_config=column_config)
+    offline = offline.sort_values('transmission_hrs')
+    offline = offline[['vehicle', 'last_seen', 'odometer']]
+    st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
+
+
+def get_overview_df():
+    # initialize
+    serving, charging, idle, offline, df = None, None, None, None, None
+
+    # get necessary data
+    active_blocks = get_active_blocks()
+    df = supabase_soc()
+    charging_sessions = get_charging_sessions()
+
+    # add transmission hrs and last seen
+    df = make_transmission_hrs(df)
+    # df['status'] = None
+
+    # make serving df
+    if active_blocks is not None:
+        df = pd.merge(active_blocks, df, left_on='coach', right_on='vehicle',
+                             how='left', suffixes=('', '_y'), indicator=True)
+        df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
+        df.rename(columns={'_merge': 'active'}, inplace=True)
+        serving = df[df['active'] == 'both']
+        serving_vehicles = serving['vehicle'].unique().tolist()
+        df['active'] = True
+    else:
+        df['active'] = False
+
+    # make charging df
+    if charging_sessions is not None:
+        df = pd.merge(df, charging_sessions, left_on='vehicle', right_on='vehicle', how='left', suffixes=('', '_y'), indicator=True)
+        df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
+        df.rename(columns={'_merge': 'charging'}, inplace=True)
+        charging = df[df['charging'] == 'both']
+        charging_vehicles = charging['vehicle'].unique().tolist()
+        df['charging'] = True
+    else:
+        df['charging'] = False
+
+    inactive = df[df['active'] == False]
+    inactive = inactive[inactive['charging'] == False]
+
+    inactive.sort_values(['last_transmission', 'status', 'vehicle'], ascending=False, inplace=True)
+  
+    df['idle'] = df['transmission_hrs'] <= 24
+    df['offline'] = df['transmission_hrs'] > 24
+    idle = df[df['idle'] == True]
+    offline = df[df['offline'] == True]
+    # make status based on charging, active, idle and offilne columns
+    df['status'] = df.apply(lambda row: 'Driving' if row['active'] 
+                            else 'Charging' if row['charging'] 
+                            else 'Idle' if row['idle'] 
+                            else 'Offline' if row['offline']
+                            else None, axis=1)
+    df = df.drop(columns=['active', 'charging', 'idle', 'offline'])
+
+    return serving, charging, idle, offline, df
