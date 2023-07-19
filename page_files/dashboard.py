@@ -88,6 +88,7 @@ def dashboard():
     idle = idle.sort_values('transmission_hrs')
     idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     idle = idle[['vehicle', 'soc', 'last_seen']]
+    idle['soc'] = idle['soc'].astype(int)
     st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
     # Offline
