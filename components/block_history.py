@@ -197,13 +197,19 @@ def show_and_format_block_history(blocks, df, key):
                 st.write(this_week)
 
                 week_avg_kwh_per_mile = this_week['kWh Used'].sum().astype(int)
-                week_avg_kwh_per_mile = (None if np.isnan(week_avg_kwh_per_mile) else week_avg_kwh_per_mile)
+
+                if np.isnan(week_avg_kwh_per_mile):
+                    week_avg_kwh_per_mile = 0
+                    delta = 0
+                else:
+                    delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile)
+                
 
                 week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
                 week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
                 week_total_blocks_served = len(this_week)
 
-                col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile))
+                col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
                 col2.metric("Total kWh Used", week_total_kwh_used)
                 col3.metric("Total Miles Travelled", week_total_miles_travelled)
                 col4.metric("Blocks Served", week_total_blocks_served)
