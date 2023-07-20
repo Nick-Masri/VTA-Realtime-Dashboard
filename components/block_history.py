@@ -193,8 +193,12 @@ def show_and_format_block_history(blocks, df, key):
                 col1, col2, col3, col4 = st.columns(4)
                 diff = datetime.today() - timedelta(days=7)
                 this_week = blocks[blocks['Date'] >= diff]
+                
+                if this_week.empty:
+                    week_avg_kwh_per_mile = 0
+                else:
+                    week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
 
-                week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
                 week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
                 week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
                 week_total_blocks_served = len(this_week)
