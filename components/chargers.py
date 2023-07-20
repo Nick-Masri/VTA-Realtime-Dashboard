@@ -4,39 +4,33 @@ import streamlit as st
 import pandas as pd
 import data
 
-# for the page on chargers
 def format_active_sessions(active):
-    active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name)
-    active['vehicle'] = active['vehicle'].fillna('Unknown')
+    active = active.copy()
 
-    active['startTime'] = pd.to_datetime(active['startTime'])
-    active['startTime'] = active['startTime'].dt.tz_convert('US/Pacific')
-    active['currentSOC'] = active['startBatteryPercentage'] + (active['Energy'] / 440) * 100
-    active['currentSOC'] = active['currentSOC'].astype(int)
-    # st.write(active.dtypes)
+    # Mapping and filling NaN values
+    active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name).fillna('Unknown')
+    
+    # Datetime operations
+    active['startTime'] = pd.to_datetime(active['startTime']).dt.tz_convert('US/Pacific')
+    active['currentSOC'] = (active['startBatteryPercentage'] + (active['Energy'] / 440) * 100).astype(int)
 
-    # convert to timedelta for conversion
+    # Convert to timedelta for conversion
     active['totalChargingDuration'] = pd.to_timedelta(active['totalChargingDuration'])
     active['totalSessionDuration'] = pd.to_timedelta(active['totalSessionDuration'])
-    # make idle column. True if totalSessionDuration - totalChargingDuration > 90 seconds or if soc is 100
-    active['Idle'] = active['totalSessionDuration'] - active['totalChargingDuration'] > pd.Timedelta(seconds=90) | (active['currentSOC'] == 100)
-        
-    # TODO: this seems like a hacky way to do this / redundant
-    # Format as days, hours, minutes
-    active['totalChargingDuration'] = active['totalChargingDuration'].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
-    active['totalSessionDuration'] = active['totalSessionDuration'].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
 
-    # change back to object for streamlit
-    active['totalChargingDuration'] = active['totalChargingDuration'].astype(str)
-    active['totalSessionDuration'] = active['totalSessionDuration'].astype(str)
-    # remove 0 days
-    active['totalChargingDuration'] = active['totalChargingDuration'].str.replace('0 d ', '')
-    active['totalSessionDuration'] = active['totalSessionDuration'].str.replace('0 d ', '')
-    # remove 0 hours
-    active['totalChargingDuration'] = active['totalChargingDuration'].str.replace('0 hr ', '')
-    active['totalSessionDuration'] = active['totalSessionDuration'].str.replace('0 hr ', '')
+    # Create 'Idle' column
+    active['Idle'] = (active['totalSessionDuration'] - active['totalChargingDuration'] > pd.Timedelta(seconds=90)) | (active['currentSOC'] == 100)
+    
+    # Format as days, hours, minutes
+    for col in ['totalChargingDuration', 'totalSessionDuration']:
+        active[col] = active[col].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
+        
+        # Use .loc to remove 0 days and 0 hours
+        active.loc[:, col] = active[col].astype(str)
+        active.loc[:, col] = active[col].str.replace('0 d ', '').str.replace('0 hr ', '')
 
     return active
+
 
 def show_chargers():
     stations = chargepoint_stations()
@@ -51,7 +45,6 @@ def show_chargers():
     inactive = df[df['Charging'] == False]
 
     if not active.empty:
-        active = active.copy()
         active = format_active_sessions(active)
         st.subheader("Currently Charging")
         st.dataframe(active, hide_index=True, use_container_width=True,
