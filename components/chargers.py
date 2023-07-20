@@ -5,31 +5,31 @@ import pandas as pd
 import data
 
 def format_active_sessions(active):
-    active = active.copy()
+    df = active.copy()
 
     # Mapping and filling NaN values
-    active['vehicle'] = active['vehiclePortMAC'].map(data.mac_to_name).fillna('Unknown')
+    df['vehicle'] = df['vehiclePortMAC'].map(data.mac_to_name).fillna('Unknown')
     
     # Datetime operations
-    active['startTime'] = pd.to_datetime(active['startTime']).dt.tz_convert('US/Pacific')
-    active['currentSOC'] = (active['startBatteryPercentage'] + (active['Energy'] / 440) * 100).astype(int)
+    df['startTime'] = pd.to_datetime(df['startTime']).dt.tz_convert('US/Pacific')
+    df['currentSOC'] = (df['startBatteryPercentage'] + (df['Energy'] / 440) * 100).astype(int)
 
     # Convert to timedelta for conversion
-    active['totalChargingDuration'] = pd.to_timedelta(active['totalChargingDuration'])
-    active['totalSessionDuration'] = pd.to_timedelta(active['totalSessionDuration'])
+    df['totalChargingDuration'] = pd.to_timedelta(df['totalChargingDuration'])
+    df['totalSessionDuration'] = pd.to_timedelta(df['totalSessionDuration'])
 
     # Create 'Idle' column
-    active['Idle'] = (active['totalSessionDuration'] - active['totalChargingDuration'] > pd.Timedelta(seconds=90)) | (active['currentSOC'] == 100)
+    df['Idle'] = (df['totalSessionDuration'] - df['totalChargingDuration'] > pd.Timedelta(seconds=90)) | (df['currentSOC'] == 100)
     
     # Format as days, hours, minutes
     for col in ['totalChargingDuration', 'totalSessionDuration']:
-        active[col] = active[col].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
+        df[col] = df[col].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
         
         # Use .loc to remove 0 days and 0 hours
-        active.loc[:, col] = active[col].astype(str)
-        active.loc[:, col] = active[col].str.replace('0 d ', '').str.replace('0 hr ', '')
+        df.loc[:, col] = df[col].astype(str)
+        df.loc[:, col] = df[col].str.replace('0 d ', '').str.replace('0 hr ', '')
 
-    return active
+    return df
 
 
 def show_chargers():
