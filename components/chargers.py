@@ -51,6 +51,7 @@ def show_chargers():
     inactive = df[df['Charging'] == False]
 
     if not active.empty:
+        active = active.copy()
         active = format_active_sessions(active)
         st.subheader("Currently Charging")
         st.dataframe(active, hide_index=True, use_container_width=True,
