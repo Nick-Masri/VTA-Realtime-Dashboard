@@ -200,7 +200,7 @@ def show_and_format_block_history(blocks, df, key):
 
                 if np.isnan(week_avg_kwh_per_mile):
                     week_avg_kwh_per_mile = 0
-                    delta = 0
+                    delta = None
                 else:
                     delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile)
                 
