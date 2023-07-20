@@ -191,13 +191,10 @@ def show_and_format_block_history(blocks, df, key):
 
                 st.caption("Last 7 Days")
                 col1, col2, col3, col4 = st.columns(4)
-                diff = datetime.today() - timedelta(days=7)
-                st.write(blocks)
+                diff = datetime.now(pytz.timezone('US/Pacific'))  - timedelta(days=7)
+                diff = diff.strftime('%Y-%m-%d')
                 this_week = blocks[blocks['Date'] >= diff]
-                st.write(this_week)
-                st.write(diff)
-
-                week_avg_kwh_per_mile = round(this_week['kWh Used'].mean(), 2)
+                week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
 
                 if np.isnan(week_avg_kwh_per_mile):
                     week_avg_kwh_per_mile = 0
