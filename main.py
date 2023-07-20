@@ -17,38 +17,22 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    selected = option_menu(None, ["Dashboard" , "Vehicles", "Chargers", "History"], 
-    icons=["speedometer", "bus-front", "battery-charging", "clock-history"],
-    styles = {
-    "container": {"padding": "0", "background-color": "white", "border-radius": "3px"},
-    "nav": {"margin": "0", "padding": "0"},
-    "nav-item": {"display": "inline-block", "margin": "0", "list-style-type": "none"},
-    "nav-link": {
-        "padding": "10px 0px",
-        "text-align": "center",
-        "border-radius": "10px 10px 0 0",  # Rounded only at the top
-        # "margin": "0 5px",
-        "color": "black",
-        "font-size": "14px",
-        "text-decoration": "none",
-        # make a little darker when not hovered to show it's clickable
-        "background-color": "#e5e5e5",
-    },
-    "icon": {"color": "black", "font-size": "18px", "position": "relative", "top": "2px", "left": "-2px", "display":"inline"},
-    "nav-link-selected": {"background-color": "#50c878", "font-weight":  "normal"},
-    },
 
-    menu_icon="cast", default_index=0, orientation="horizontal")
-    if selected == "Dashboard":
+    # tabs for page selection
+    # add icons
+    dash, veh, charg, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🔋 Chargers", "🕓 History"])
+
+    with dash:
         dashboard()
-    elif selected == "Vehicles":
+
+    with veh:
         show_vehicles()
-    elif selected == "Chargers":
+
+    with charg:
         show_chargers()
-    elif selected == "History":
+
+    with hist:
         show_history()
-    # elif selected == "Optimization":
-    #     opt_form()
 
 
 
