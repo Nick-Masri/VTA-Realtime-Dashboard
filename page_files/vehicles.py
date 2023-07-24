@@ -6,11 +6,13 @@ import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
+
 from calls.supa_select import supabase_soc_history
-from calls.supa_select import supabase_blocks
+
 import pytz
 from components.vehicle_map import vehicle_map
 from page_files.history import show_history , get_block_data, show_and_format_block_history
+from page_files.dashboard import make_transmission_hrs
 
 def transmission_formatting():
 
@@ -53,6 +55,24 @@ def show_most_recent(df):
     column_order, column_config = transmission_formatting()
 
     df = df.copy()
+
+    # Display Vehicle Visual Status indicator
+    hours_df = df.copy()
+    hours_df = make_transmission_hrs(hours_df)
+    hours_df = hours_df.sort_values('transmission_hrs', ascending=True)
+    hours_df = hours_df.drop_duplicates(subset=['vehicle'], keep='first')
+    hours = hours_df['transmission_hrs'].iloc[0]
+    last_seen = hours_df['last_seen'].iloc[0]
+    # four levels
+    options = ['🟢', '🟡', '🔴']
+    if hours <= 2:
+        st.caption(f'🟢 Last transmission was {last_seen} ago. Data is up to date.')
+    elif hours <= 12:
+        st.caption(f'🟡 Last transmission was {last_seen} ago. Data may be outdated.')
+    else:
+        st.caption(f'🔴 Last transmission was {last_seen} ago. Data is most likely outdated.')  
+
+
     # remove asterix from fault column
     df['fault'] = df['fault'].str.replace('*', '', regex=False)
 
@@ -63,19 +83,33 @@ def show_most_recent(df):
     df['last_transmission'] = df['last_transmission'].dt.tz_localize(utc).dt.tz_convert(california_tz)
     most_recent = df.drop_duplicates(subset=['vehicle'], keep='first')
 
-    # checkbox to see most recent transmission or all
-    show_all = st.checkbox('Show All')
+    if most_recent['last_transmission'].iloc[0] <  datetime(2023, 6, 30).astimezone(california_tz):
+        inactive = True
+    else:
+        inactive = False
+
+    if not inactive:
+        show_all = st.checkbox('Show All')
+    else: 
+        show_all = False
+    
     if show_all:
-        st.dataframe(df, hide_index=True, use_container_width=True,
-                     column_order=column_order,
-                     column_config=column_config)
+        all_df = df.sort_values('last_transmission', ascending=False)
+        all_df = all_df.drop_duplicates(subset=['last_transmission'], keep='first')
+        st.dataframe(all_df, hide_index=True, use_container_width=True,
+                    column_order=column_order,
+                    column_config=column_config)
     else:
         st.caption("Most Recent Transmission")
+
+        # if most_recent['last_transmission'].iloc[0] <  datetime.now(tz=california_tz) - timedelta(days=1):
+        #     st.warning("Vehicle has not transmitted in over 24 hours. Data may be outdated.")
+            
         st.dataframe(most_recent, hide_index=True, use_container_width=True,
-                     column_order=column_order,
-                     column_config=column_config)
+                    column_order=column_order,
+                    column_config=column_config)
 
-
+    return inactive
 
 def show_vehicles():
     
@@ -84,10 +118,6 @@ def show_vehicles():
     vehicle = st.selectbox(
         'Select a vehicle',
         options)
-    
-
-    # Display map
-    vehicle_map(vehicle)
 
     df = supabase_soc_history(vehicle=vehicle)
     df['created_at'] = pd.to_datetime(df['created_at'])
@@ -102,28 +132,33 @@ def show_vehicles():
     # Calculate the energy lost and gained
     filtered_df['energy_change'] = filtered_df['soc'].diff()
 
-    show_most_recent(df)
+    # Display map
+    vehicle_map(vehicle)
+
+    # Show the most recent transmission
+    inactive = show_most_recent(df)
     df = df.drop(columns=['created_at'])
 
     # Get the active blocks from supabase
     blocks = get_block_data()
     blocks = blocks[blocks['coach'] == vehicle]
-    st.write("## History")
-    show_and_format_block_history(blocks, df, key="vehicle")
-    
-    fig = px.area(filtered_df,
-                  x=filtered_df['created_at'],
-                  y=filtered_df['soc'])
-    # Set the layout for the chart
-    fig.update_layout(
-        title=f'State of Charge for Coach {vehicle}',
-        # title size
-        title_font_size=20,
-        xaxis_title="Date Recorded",
-        yaxis_title="State of Charge Percentage (%)",
-        yaxis_range=[-5, 105]
-    )
+    if not inactive:
+        st.write("## History")
+        show_and_format_block_history(blocks, df, key="vehicle")
+        
+        fig = px.area(filtered_df,
+                    x=filtered_df['created_at'],
+                    y=filtered_df['soc'])
+        # Set the layout for the chart
+        fig.update_layout(
+            title=f'State of Charge for Coach {vehicle}',
+            # title size
+            title_font_size=20,
+            xaxis_title="Date Recorded",
+            yaxis_title="State of Charge Percentage (%)",
+            yaxis_range=[-5, 105]
+        )
 
-    # Render the scatter plot in Streamlit
-    st.plotly_chart(fig, use_container_width=True)
+        # Render the scatter plot in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
