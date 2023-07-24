@@ -4,6 +4,8 @@ import pandas as pd
 import data
 import numpy as np
 
+
+
 def format_duration(col):
 
     col = col.apply(
@@ -23,8 +25,11 @@ def format_duration(col):
 
 # shows the charging history of the ebuses
 def show_charger_history():      
-    st.caption("Currently only shows the last 7 days of charging history. In the future there will be a way to query for a longer and specific time period.")
-    df = chargepoint_past_sessions()
+    # st.caption("Currently only shows the last 7 days of charging history. In the future there will be a way to query for a longer and specific time period.")
+    # ask for start and end date input
+    start_date = st.date_input('Start Date', value=pd.Timestamp.now(tz='US/Pacific') - pd.Timedelta(days=7), format="MM/DD/YYYY")
+    end_date = st.date_input('End Date', value=pd.Timestamp.now(tz='US/Pacific'), format="MM/DD/YYYY")
+    df = chargepoint_past_sessions(start_date, end_date)
     df = df.sort_values('startTime', ascending=False)
     # Change station name from VTA / STATION #1 to VTA STATION #1
     df['stationName'] = df['stationName'].str.replace(' / ', ' ')
@@ -44,6 +49,10 @@ def show_charger_history():
                                             df['startBatteryPercentage'] + df['Energy'] / 440 * 100,
                                             df['stopBatteryPercentage'])
     df['stopBatteryPercentage'] = df['stopBatteryPercentage'].astype(int)
+
+    # remove when charging duration is 0 minutes (for some reason there is a lot)
+    df = df[df['totalChargingDuration'] != '0 minutes']
+
     df['stationName'] = df['stationName'].str.replace('VTA STATION #', 'Station ')
     st.dataframe(df, 
                  hide_index=True, use_container_width=True,

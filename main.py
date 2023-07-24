@@ -20,7 +20,7 @@ def main():
 
     # tabs for page selection
     # add icons
-    dash, veh, charg, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🔋 Chargers", "🕓 History"])
+    dash, veh, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History"])
 
     with dash:
         dashboard()
@@ -28,12 +28,10 @@ def main():
     with veh:
         show_vehicles()
 
-    with charg:
-        show_chargers()
-
     with hist:
         show_history()
 
+    st.toast("Updates: Updated charging history tab and removed charging tab. \n\n More Details: Removed charger tab since all active chargers are shown on the dashboard tab. Integrating ML for energy consumption predictions is next.")
 
 
 

@@ -1,5 +1,5 @@
 # essentials
-streamlit~=1.24.0
+streamlit~=1.25.0
 supabase~=1.0.3
 numpy
 pandas

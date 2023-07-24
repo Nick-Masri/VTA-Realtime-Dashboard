@@ -63,14 +63,14 @@ def vehicle_map(vehicle):
                             f"<br>Latitude: {lat}" \
                             f"<br>Longitude: {long}" \
                             f"<br>Speed: {row['speed']} " \
-                            f"<br>Last Transmission: {row['created_at']}"
+                            f"<br>Last Location Transmission: {row['created_at']}"
             folium.Marker(location=[lat, long], popup=popup_text).add_to(m)
 
             # show the map
             if loc_str != 'Unlisted':
                 folium_static(m)
         else:
-            st.warning("Location data for this vehicle is not available.")
+            st.info("Location data for this vehicle is not available.")
            
 
 
