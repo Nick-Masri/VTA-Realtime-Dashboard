@@ -2,8 +2,8 @@ import pandas as pd
 import streamlit as st
 import pytz
 # calls
-from calls.supa_select import supabase_soc
-from calls.chargepoint import chargepoint_active_sessions
+# from calls.supa_select import supabase_soc
+from calls.bundled import active_info
 # components
 from components.active_blocks import show_active_blocks, get_active_blocks
 # page files
@@ -11,18 +11,8 @@ from page_files.chargers import format_active_sessions
 # data
 import data
 
-def get_charging_sessions():
-    df = chargepoint_active_sessions()
-    df["stationName"] = df["stationName"].str.replace(' / ', ' ', regex=False)
-    # Replace the desired format in the 'Station' column
-    df["stationName"] = df["stationName"].str.replace(r"VTA STATION #(\d+)", r"Station \1", regex=True)
-    df = df[df['Charging'] == True]
-    if not df.empty:
-        df = format_active_sessions(df)
-        df = df[['stationName', 'Idle', 'vehicle', 'totalSessionDuration', 'currentSOC']]
-        return df
-    else:
-        return None
+
+
 def show_data_scraping_status(df):
     df['created_at'] = df['created_at'].dt.tz_convert(pytz.timezone('US/Pacific'))
     # time with am pm 
@@ -97,15 +87,12 @@ def dashboard():
     offline = offline[['vehicle', 'last_seen', 'odometer']]
     st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
 
-@st.cache_data(ttl=pd.Timedelta(minutes=5), show_spinner="Grabbing data...")
 def get_overview_df():
     # initialize
     serving, charging, idle, offline, df = None, None, None, None, None
 
     # get necessary data
-    active_blocks = get_active_blocks()
-    df = supabase_soc()
-    charging_sessions = get_charging_sessions()
+    active_blocks, df, charging_sessions = active_info()
 
     # add transmission hrs and last seen
     df = make_transmission_hrs(df)

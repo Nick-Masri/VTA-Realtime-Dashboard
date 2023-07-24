@@ -83,20 +83,15 @@ def chargepoint_active_sessions():
     return df.copy()
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
-def chargepoint_past_sessions():
+def chargepoint_past_sessions(start_date, end_date):
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
     df = pd.DataFrame()
-    # start time as a week from now
-    # end time as now
-    # use utc
-    startTime = pd.Timestamp.now(tz='UTC') - pd.Timedelta(days=7)
-    endTime = pd.Timestamp.now(tz='UTC')
     for name, station_id in station_ids.items():
         queryString = {
             'stationID': station_id,
-            'fromTimeStamp': startTime,
-            'toTimeStamp': endTime,
+            'fromTimeStamp': start_date,
+            'toTimeStamp': end_date,
         }
         data = client.service.getChargingSessionData(queryString)
         # code = data['responseCode']
