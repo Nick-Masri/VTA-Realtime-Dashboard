@@ -3,7 +3,7 @@ from components.active_blocks import get_active_blocks
 import streamlit as st
 import pandas as pd
 from calls.chargepoint import chargepoint_active_sessions
-
+from components.chargers import format_active_sessions
 
 @st.cache_data(ttl=pd.Timedelta(minutes=5), show_spinner="Updating data...")
 def active_info():
