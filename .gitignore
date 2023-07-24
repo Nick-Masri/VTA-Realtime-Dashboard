@@ -2,3 +2,4 @@ __pycache__
 .venv/
 .streamlit/secrets.toml
 .vscode/settings.json
+page_files/valence-vta-app.code-workspace
