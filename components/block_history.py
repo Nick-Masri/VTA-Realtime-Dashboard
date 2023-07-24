@@ -31,9 +31,9 @@ def create_delta(week_val, all_val):
 def show_and_format_block_history(blocks, df, key):
 
     blocks = blocks.copy() 
-    # filter out before 2023-06-30 since db was down
+    # filter out before 2023-06-30 since db was down (change to start of july)
     blocks['date'] = pd.to_datetime(blocks['date'])
-    blocks = blocks[blocks['date'] >= datetime(2023, 6, 30)]
+    blocks = blocks[blocks['date'] >= datetime(2023, 7, 1)]
     # back to string
     blocks['date'] = blocks['date'].dt.strftime('%Y-%m-%d')
 
@@ -177,40 +177,28 @@ def show_and_format_block_history(blocks, df, key):
 
                 st.write("### Metrics")
 
-                st.caption("Since June 30, 2023")
-                col1, col2, col3, col4 = st.columns(4)
+
+                # st.caption("Today")
+                # col1, col2, col3, col4 = st.columns(4)
+
+
                 avg_kwh_per_mile = round(blocks['kWh per Mile'].mean(), 2)
                 total_kwh_used = blocks['kWh Used'].sum().astype(int)
                 total_miles_travelled = blocks['Miles Travelled'].sum().astype(int)
                 total_blocks_served = len(blocks)
 
+                # only shows if there are blocks that were served
+                recent_metrics(blocks, timedelta(days=1), "Today")
+                recent_metrics(blocks, timedelta(days=7), "Last 7 Days")
+
+                st.caption("Month of July")
+                col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Average kWh / mile", avg_kwh_per_mile)
                 col2.metric("Total kWh Used", total_kwh_used)
                 col3.metric("Total Miles Travelled", total_miles_travelled)
                 col4.metric("Blocks Served", total_blocks_served)
 
-                st.caption("Last 7 Days")
-                col1, col2, col3, col4 = st.columns(4)
-                diff = datetime.now(pytz.timezone('US/Pacific'))  - timedelta(days=7)
-                diff = diff.strftime('%Y-%m-%d')
-                this_week = blocks[blocks['Date'] >= diff]
-                week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
 
-                if np.isnan(week_avg_kwh_per_mile):
-                    week_avg_kwh_per_mile = 0
-                    delta = None
-                else:
-                    delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile)
-                
-
-                week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
-                week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
-                week_total_blocks_served = len(this_week)
-
-                col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
-                col2.metric("Total kWh Used", week_total_kwh_used)
-                col3.metric("Total Miles Travelled", week_total_miles_travelled)
-                col4.metric("Blocks Served", week_total_blocks_served)
 
             st.write("### Data")
             show_details = st.checkbox("Toggle More Details", key=key)
@@ -239,3 +227,33 @@ def show_and_format_block_history(blocks, df, key):
 
                 # Provide download buttons for both CSV and Excel
                 st.download_button("Download Data as CSV", csv_data, "block_history.csv")
+
+
+def recent_metrics(blocks, days, caption):
+
+    avg_kwh_per_mile = round(blocks['kWh per Mile'].mean(), 2)
+
+    # this week metrics
+    diff = datetime.now(pytz.timezone('US/Pacific')) - days
+    diff = diff.strftime('%Y-%m-%d')
+    this_week = blocks[blocks['Date'] >= diff]
+    week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
+
+    if np.isnan(week_avg_kwh_per_mile):
+        week_avg_kwh_per_mile = 0
+        delta = None
+    else:
+        delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile)
+    
+    week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
+    week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
+    week_total_blocks_served = len(this_week)
+
+    if week_total_blocks_served != 0:
+
+        st.caption(caption)
+        col1, col2, col3, col4 = st.columns(4)
+        col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
+        col2.metric("Total kWh Used", week_total_kwh_used)
+        col3.metric("Total Miles Travelled", week_total_miles_travelled)
+        col4.metric("Blocks Served", week_total_blocks_served)
