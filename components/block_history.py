@@ -193,12 +193,10 @@ def show_and_format_block_history(blocks, df, key):
 
                 st.caption("Month of July")
                 col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Average kWh / mile", avg_kwh_per_mile)
-                col2.metric("Total kWh Used", total_kwh_used)
-                col3.metric("Total Miles Travelled", total_miles_travelled)
-                col4.metric("Blocks Served", total_blocks_served)
-
-
+                col1.metric("Blocks Served", total_blocks_served)
+                col2.metric("Total Miles Travelled", total_miles_travelled)
+                col3.metric("Total kWh Used", total_kwh_used)
+                col4.metric("Average kWh / mile", avg_kwh_per_mile)
 
             st.write("### Data")
             show_details = st.checkbox("Toggle More Details", key=key)
@@ -253,7 +251,7 @@ def recent_metrics(blocks, days, caption):
 
         st.caption(caption)
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
-        col2.metric("Total kWh Used", week_total_kwh_used)
-        col3.metric("Total Miles Travelled", week_total_miles_travelled)
-        col4.metric("Blocks Served", week_total_blocks_served)
+        col1.metric("Blocks Served", week_total_blocks_served)
+        col2.metric("Total Miles Travelled", week_total_miles_travelled)
+        col3.metric("Total kWh Used", week_total_kwh_used)
+        col4.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
