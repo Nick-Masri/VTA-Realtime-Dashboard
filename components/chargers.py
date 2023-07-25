@@ -23,11 +23,13 @@ def format_active_sessions(active):
     
     # Format as days, hours, minutes
     for col in ['totalChargingDuration', 'totalSessionDuration']:
-        df[col] = df[col].apply(lambda x: f'{x.days} d {x.seconds // 3600} hr {x.seconds // 60 % 60} min')
+        df[col] = df[col].apply(lambda x: f'{x.days} days {x.seconds // 3600} hours {x.seconds // 60 % 60} minutes')
         
         # Use .loc to remove 0 days and 0 hours
         df.loc[:, col] = df[col].astype(str)
-        df.loc[:, col] = df[col].str.replace('0 d ', '').str.replace('0 hr ', '')
+        df.loc[:, col] = df[col].str.replace('0 days ', '').str.replace('0 hours ', '')
+        # Remove s's from days, hours, minutes if only 1
+        df.loc[:, col] = df[col].str.replace('1 days', '1 day').str.replace('1 hours', '1 hour').str.replace('1 minutes', '1 minute')
 
     return df
 

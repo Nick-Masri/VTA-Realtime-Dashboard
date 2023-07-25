@@ -58,6 +58,7 @@ def dashboard():
 
     # Active Blocks
     if serving is not None:
+        st.subheader("🚏 Active Blocks")
         merged_df = pd.merge(serving, df, left_on='coach', right_on='vehicle',
                                 how='inner', suffixes=('', '_y'))
         merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
@@ -66,7 +67,7 @@ def dashboard():
 
     # Actively Charging
     if charging is not None and not charging.empty:
-        st.subheader("Currently Charging")
+        st.subheader("🔌 Currently Charging")
         # current soc if less than equal to 100 and above 0 otherwise soc
         charging['soc'] = charging.apply(lambda row: row['currentSOC'] if row['currentSOC'] <= 100 and row['currentSOC'] > 0 else row['soc'], axis=1)
         charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
@@ -89,7 +90,7 @@ def dashboard():
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
         
     # Idle
-    st.subheader("Idle Buses")
+    st.subheader("⌛ Idle Buses")
     idle = idle.sort_values('transmission_hrs')
     idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     idle = idle[['vehicle', 'soc', 'last_seen']]
@@ -97,7 +98,7 @@ def dashboard():
     st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
     # Offline
-    st.subheader("Offline for more than a day")
+    st.subheader("⚠️ Offline for more than a day")
     offline = offline.sort_values('transmission_hrs')
     offline = offline[['vehicle', 'last_seen', 'odometer']]
     st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
