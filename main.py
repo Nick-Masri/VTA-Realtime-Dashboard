@@ -18,7 +18,7 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist, opt = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🔧 Optimization"])
+    dash, veh, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History"])
 
     with dash:
         dashboard()
@@ -29,8 +29,8 @@ def main():
     with hist:
         show_history()
 
-    with opt:
-        opt_form()
+    # with opt:
+    #     opt_form()
 
 
 

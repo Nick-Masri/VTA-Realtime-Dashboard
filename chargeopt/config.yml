@@ -1,15 +1,7 @@
 chargerEff: 0.94
-chargerPower: 75
-ebMaxKwh: 675
-emChargeEff: 0.9
-emChargePower: 500
-emDischargeEff: 0.9
-emDischargePower: 500
-emMaxKwh: 1000
-filename: flex_test 38
+chargerPower: 50
+ebMaxKwh: 440
+main: False
+solar: False
 gridMaxPower: 500
-numBuses: 10
-numChargers: 3
-routes: [119, 246, 261, 96, 128, 104, 53, 48, 210, 198]
-runType: static
-solarMaxPower: 250
+solarMaxPower: 0
