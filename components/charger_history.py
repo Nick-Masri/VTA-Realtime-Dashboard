@@ -54,6 +54,8 @@ def show_charger_history():
     df = df[df['totalChargingDuration'] != '0 minutes']
 
     df['stationName'] = df['stationName'].str.replace('VTA STATION #', 'Station ')
+    # replace 0 minutes with none (not str)
+    df['timeIdle'] = df['timeIdle'].replace('0 minutes', np.nan)
     st.dataframe(df, 
                  hide_index=True, use_container_width=True,
                  column_config={
@@ -76,8 +78,8 @@ def show_charger_history():
                         "endedBy": st.column_config.TextColumn("Ended By"),
                  },
                     column_order=[
-                        "stationName",
                         "vehicle",
+                        "stationName",
                         "startBatteryPercentage",
                         "stopBatteryPercentage",
                         "totalChargingDuration",
