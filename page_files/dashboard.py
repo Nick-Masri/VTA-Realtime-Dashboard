@@ -67,8 +67,23 @@ def dashboard():
     # Actively Charging
     if charging is not None and not charging.empty:
         st.subheader("Currently Charging")
+        # current soc if less than equal to 100 and above 0 otherwise soc
+        charging['soc'] = charging.apply(lambda row: row['currentSOC'] if row['currentSOC'] <= 100 and row['currentSOC'] > 0 else row['soc'], axis=1)
+        charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
+        
         st.dataframe(charging, hide_index=True, use_container_width=True, 
-                        column_config=column_config)
+                        column_order=[
+                             "vehicle", "soc","stationName", "totalSessionDuration"],
+                        column_config={
+                            "stationName": st.column_config.TextColumn("Station"),
+                            "vehicle": st.column_config.TextColumn("Coach"),
+                            "totalSessionDuration": st.column_config.TextColumn("Session Duration"),
+                            "soc": st.column_config.ProgressColumn("State of Charge",
+                                                                                    format='%d%%',
+                                                                                    min_value=0,max_value=100),
+
+                        }
+                        )
 
     # Idle and Offline
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
@@ -127,8 +142,15 @@ def get_overview_df():
   
     df['idle'] = df['transmission_hrs'] <= 24
     df['offline'] = df['transmission_hrs'] > 24
+
     idle = df[df['idle'] == True]
+    idle = idle[idle['active'] == False]
+    idle = idle[idle['charging'] == False]
+
     offline = df[df['offline'] == True]
+    offline = offline[offline['active'] == False]
+    offline = offline[offline['charging'] == False]
+
     idle = idle.copy()
     offline = offline.copy()
     # make status based on charging, active, idle and offilne columns
