@@ -29,7 +29,7 @@ def show_chargers():
                         column_config={
                             "stationName": st.column_config.TextColumn("Station"),
                             "startTime": st.column_config.DatetimeColumn("Start Time",
-                                                                            format="hh:mmA"),
+                                                                            format="h:mmA"),
                             "vehicle": st.column_config.TextColumn("Coach"),
                             "totalChargingDuration": st.column_config.TextColumn("Charging Duration"),
                             "totalSessionDuration": st.column_config.TextColumn("Session Duration"),

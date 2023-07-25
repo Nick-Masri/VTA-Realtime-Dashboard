@@ -5,12 +5,12 @@ import datetime
 import streamlit as st
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=60))
-def send_email(error):
+def send_email(_error):
     email = st.secrets["EMAIL"]
     password = st.secrets["EMAIL_PASSWD"]
     email = os.getenv('EMAIL')
     password = os.getenv('EMAIL_PASSWD')
-    msg = MIMEText(str(error))
+    msg = MIMEText(str(_error))
     msg['Subject'] = "VTA EBUS App Down"
     msg['From'] = email
     msg['To'] = email

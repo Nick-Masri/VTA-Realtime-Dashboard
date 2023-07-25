@@ -50,13 +50,11 @@ def show_chargers():
         st.dataframe(active, hide_index=True, use_container_width=True,
                         column_order=[
                             "stationName","Idle", "startTime", "vehicle", "startBatteryPercentage", 
-                             "currentSOC", "totalChargingDuration", 
-                            #  "totalSessionDuration",
-                                        ],
+                             "currentSOC", "totalChargingDuration"],
                         column_config={
                             "stationName": st.column_config.TextColumn("Station"),
                             "startTime": st.column_config.DatetimeColumn("Start Time",
-                                                                            format="hh:mmA"),
+                                                                            format="h:mmA"),
                             "vehicle": st.column_config.TextColumn("Coach"),
                             "totalChargingDuration": st.column_config.TextColumn("Charging Duration"),
                             "totalSessionDuration": st.column_config.TextColumn("Session Duration"),

@@ -51,7 +51,7 @@ dash_column_config = {
     "last_transmission": st.column_config.DatetimeColumn(
         "Last Transmission Time",
         help="Time of Last Transmission",
-        format="hh:mmA MM/DD/YYYY",
+        format="h:mmA MM/DD/YYYY",
     ),
     "status": st.column_config.CheckboxColumn("Status")
 }
