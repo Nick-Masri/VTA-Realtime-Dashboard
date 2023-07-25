@@ -14,6 +14,5 @@ def show_history():
         df = supabase_soc_history()
         df = df.sort_values('vehicle')
         blocks = get_block_data()
-        st.warning("We are currently aware of an issue where the block historical data disappears every now and then. We are working on a fix for this.")
         show_and_format_block_history(blocks, df, key="all")
 

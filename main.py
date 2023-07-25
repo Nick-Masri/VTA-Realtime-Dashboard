@@ -24,6 +24,9 @@ def main():
 
     with dash:
         dashboard()
+        
+        st.toast("Updates: Updated charging history tab and removed charging tab. \n\n More Details: Removed charger tab since all active chargers are shown on the dashboard tab. Integrating ML for energy consumption predictions is next.")
+
 
     with veh:
         show_vehicles()
@@ -31,7 +34,6 @@ def main():
     with hist:
         show_history()
 
-    st.toast("Updates: Updated charging history tab and removed charging tab. \n\n More Details: Removed charger tab since all active chargers are shown on the dashboard tab. Integrating ML for energy consumption predictions is next.")
 
 
 
