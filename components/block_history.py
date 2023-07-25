@@ -159,7 +159,8 @@ def show_and_format_block_history(blocks, df, key):
         }
         block_col_order = ["date", "coach", "id", "block_id",
                         "block_startTime",
-                        "block_endTime", "predictedArrival",
+                        "block_endTime", 
+                        # "predictedArrival",
                         "Start SOC (%)", "End SOC (%)", "SOC Change (%)",
                         "Miles Travelled", "kWh per Mile",
                         ]
@@ -198,7 +199,7 @@ def show_and_format_block_history(blocks, df, key):
                 col3.metric("Total kWh Used", total_kwh_used)
                 col4.metric("Average kWh / mile", avg_kwh_per_mile)
 
-            st.write("### Data")
+            st.write("### Service Data")
             show_details = st.checkbox("Toggle More Details", key=key)
             exclude_na = st.checkbox("Exclude Rows with Unmatched Start or End SOC", key = key + "nan" )
             if show_details:

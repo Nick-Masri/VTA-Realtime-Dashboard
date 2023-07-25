@@ -18,7 +18,7 @@ def transmission_formatting():
 
 
     # format the columns
-    column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'status', 'fault']
+    column_order=['vehicle', 'soc',  'last_transmission', 'odometer', 'fault']
     column_config={
         "soc": st.column_config.ProgressColumn(
             "State of Charge",
@@ -42,14 +42,13 @@ def transmission_formatting():
             help="Time of Last Transmission",
             format="h:mmA MM/DD/YYYY",
         ),
-        "status": st.column_config.CheckboxColumn("Status"),
         "fault": st.column_config.TextColumn("Fault")
     }
     
     return column_order, column_config
 
 def show_most_recent(df):
-    st.subheader("Transmissions")
+    # st.subheader("Transmissions")
 
     # get the formatting for the columns
     column_order, column_config = transmission_formatting()
@@ -101,10 +100,6 @@ def show_most_recent(df):
                     column_config=column_config)
     else:
         st.caption("Most Recent Transmission")
-
-        # if most_recent['last_transmission'].iloc[0] <  datetime.now(tz=california_tz) - timedelta(days=1):
-        #     st.warning("Vehicle has not transmitted in over 24 hours. Data may be outdated.")
-            
         st.dataframe(most_recent, hide_index=True, use_container_width=True,
                     column_order=column_order,
                     column_config=column_config)
@@ -122,6 +117,11 @@ def show_vehicles():
     df = supabase_soc_history(vehicle=vehicle)
     df['created_at'] = pd.to_datetime(df['created_at'])
     df = df.sort_values('created_at', ascending=False)
+
+    # Show the most recent transmission
+    inactive = show_most_recent(df)
+
+
     data = {"coaches": "All", "start_date": df.created_at.min(), "end_date": df.created_at.max()}
     vehicles = pd.DataFrame(data, index=[0])
     vehicles.start_date = pd.to_datetime(vehicles.start_date)
@@ -135,15 +135,12 @@ def show_vehicles():
     # Display map
     vehicle_map(vehicle)
 
-    # Show the most recent transmission
-    inactive = show_most_recent(df)
     df = df.drop(columns=['created_at'])
 
     # Get the active blocks from supabase
     blocks = get_block_data()
     blocks = blocks[blocks['coach'] == vehicle]
     if not inactive:
-        st.write("## History")
         show_and_format_block_history(blocks, df, key="vehicle")
         
         fig = px.area(filtered_df,
