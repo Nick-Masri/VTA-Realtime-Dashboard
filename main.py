@@ -29,11 +29,14 @@ def main():
 
         with hist:
             show_history()
-            
+
     except Exception as e:
-        st.error("An error occurred. We have been notified and will fix it asap.")
-        send_email(e)
-        st.stop()
+        if e == ConnectionError:
+            st.error("An error occurred loading the data. Try refreshing the page.")
+        else:
+            st.error("An error occurred. We have been notified and will fix it asap.")
+            send_email(e)
+            st.stop()
 
 
 if __name__ == "__main__":
