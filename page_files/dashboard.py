@@ -71,7 +71,7 @@ def dashboard():
         # current soc if less than equal to 100 and above 0 otherwise soc
         charging['soc'] = charging.apply(lambda row: row['currentSOC'] if row['currentSOC'] <= 100 and row['currentSOC'] > 0 else row['soc'], axis=1)
         charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
-        
+        charging = charging.sort_values('vehicle', ascending=True)
         st.dataframe(charging, hide_index=True, use_container_width=True, 
                         column_order=[
                              "vehicle", "soc","stationName", "totalSessionDuration"],
