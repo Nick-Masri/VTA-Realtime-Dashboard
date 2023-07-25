@@ -40,7 +40,7 @@ def transmission_formatting():
         "last_transmission": st.column_config.DatetimeColumn(
             "Last Transmission Time",
             help="Time of Last Transmission",
-            format="hh:mmA MM/DD/YYYY",
+            format="h:mmA MM/DD/YYYY",
         ),
         "status": st.column_config.CheckboxColumn("Status"),
         "fault": st.column_config.TextColumn("Fault")
@@ -66,11 +66,11 @@ def show_most_recent(df):
     # four levels
     options = ['🟢', '🟡', '🔴']
     if hours <= 2:
-        st.caption(f'🟢 Last transmission was {last_seen} ago. Data is up to date.')
+        st.caption(f'🟢 Last transmission was {last_seen} ago')
     elif hours <= 12:
-        st.caption(f'🟡 Last transmission was {last_seen} ago. Data may be outdated.')
+        st.caption(f'🟡 Last transmission was {last_seen} ago')
     else:
-        st.caption(f'🔴 Last transmission was {last_seen} ago. Data is most likely outdated.')  
+        st.caption(f'🔴 Last transmission was {last_seen} ago')  
 
 
     # remove asterix from fault column

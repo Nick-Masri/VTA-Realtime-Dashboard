@@ -70,7 +70,7 @@ def vehicle_map(vehicle):
             if loc_str != 'Unlisted':
                 folium_static(m)
         else:
-            st.info("Location data for this vehicle is not available.")
+            st.info("Location data for this vehicle is not available")
            
 
 

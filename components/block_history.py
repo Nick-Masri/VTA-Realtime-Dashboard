@@ -151,10 +151,10 @@ def show_and_format_block_history(blocks, df, key):
             "coach": st.column_config.TextColumn("Coach"),
             "id": st.column_config.TextColumn("Route"),
             "block_id": st.column_config.TextColumn("Block"),
-            "block_startTime": st.column_config.TimeColumn("Start Time", format="hh:mmA"),
-            "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
+            "block_startTime": st.column_config.TimeColumn("Start Time", format="h:mmA"),
+            "block_endTime": st.column_config.TimeColumn("End Time", format="h:mmA"),
             "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
-                                                            format="hh:mmA"),
+                                                            format="h:mmA"),
             "date": st.column_config.DateColumn("Date", format="MM/DD/YY")
         }
         block_col_order = ["date", "coach", "id", "block_id",

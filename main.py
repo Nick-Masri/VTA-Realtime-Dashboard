@@ -18,25 +18,20 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History"])
+    dash, veh, hist, opt = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🔧 Optimization"])
 
-    try:
-        with dash:
-            dashboard()
+    with dash:
+        dashboard()
 
-        with veh:
-            show_vehicles()
+    with veh:
+        show_vehicles()
 
-        with hist:
-            show_history()
+    with hist:
+        show_history()
 
-    except Exception as e:
-        if e == ConnectionError:
-            st.error("An error occurred loading the data. Try refreshing the page.")
-        else:
-            st.error("An error occurred. We have been notified and will fix it asap.")
-            send_email(e)
-            st.stop()
+    with opt:
+        opt_form()
+
 
 
 if __name__ == "__main__":
