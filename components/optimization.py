@@ -15,7 +15,7 @@ def opt_form():
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
 
     with st.form("opt_input"):
-        buses, block_tab, chargers = st.tabs(["Buses", "Blocks", "Chargers"])
+        buses, block_tab, chargers, options = st.tabs(["Buses", "Blocks", "Chargers", "Options"])
         with buses:
             st.write("# Buses")
             df = df.sort_values('transmission_hrs', ascending=True)
@@ -88,7 +88,10 @@ def opt_form():
                                                         disabled=True
                                                     )},
                                                 column_order=['Select', 'stationName', 'networkStatus'])
+            
+        with options:
 
+            run_type = st.radio("Route Selection", options=['Provide Assignments', 'Heuristic', 'Optimal'])
             submit = st.form_submit_button("Submit")
 
         if submit:
