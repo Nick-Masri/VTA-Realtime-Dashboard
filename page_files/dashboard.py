@@ -74,7 +74,7 @@ def dashboard():
         charging = charging.sort_values('vehicle', ascending=True)
         st.dataframe(charging, hide_index=True, use_container_width=True, 
                         column_order=[
-                             "vehicle", "soc","stationName", "totalSessionDuration"],
+                             "vehicle", "stationName", "soc", "totalSessionDuration"],
                         column_config={
                             "stationName": st.column_config.TextColumn("Station"),
                             "vehicle": st.column_config.TextColumn("Coach"),
