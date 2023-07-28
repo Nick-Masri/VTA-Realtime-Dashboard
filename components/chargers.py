@@ -12,7 +12,8 @@ def format_active_sessions(active):
     
     # Datetime operations
     df['startTime'] = pd.to_datetime(df['startTime']).dt.tz_convert('US/Pacific')
-    df['currentSOC'] = (df['startBatteryPercentage'] + (df['Energy'] / 440) * 100).astype(int)
+    # 0.96 is the efficiency of the battery
+    df['currentSOC'] = (df['startBatteryPercentage'] + (df['Energy'] / 440) * 100 * 0.96).astype(int)
 
     # Convert to timedelta for conversion
     df['totalChargingDuration'] = pd.to_timedelta(df['totalChargingDuration'])
