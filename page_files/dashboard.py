@@ -14,6 +14,7 @@ import data
 
 
 def show_data_scraping_status(df):
+    df['created_at'] = pd.to_datetime(df['created_at'])
     df['created_at'] = df['created_at'].dt.tz_convert(pytz.timezone('US/Pacific'))
     # time with am pm 
     last_updated = pd.to_datetime(df['created_at'].max())
@@ -69,7 +70,6 @@ def dashboard():
     if charging is not None and not charging.empty:
         st.subheader("🔌 Currently Charging")
         # current soc if less than equal to 100 and above 0 otherwise soc
-        charging['soc'] = charging.apply(lambda row: row['currentSOC'] if row['currentSOC'] <= 100 and row['currentSOC'] > 0 else row['soc'], axis=1)
         charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
         charging = charging.sort_values('vehicle', ascending=True)
         st.dataframe(charging, hide_index=True, use_container_width=True, 
@@ -83,8 +83,7 @@ def dashboard():
                                                                                     format='%d%%',
                                                                                     min_value=0,max_value=100),
 
-                        }
-                        )
+                    })
 
     # Idle and Offline
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
@@ -132,6 +131,11 @@ def get_overview_df():
         df.rename(columns={'_merge': 'charging'}, inplace=True)
         charging = df[df['charging'] == 'both']
         charging = charging.copy()
+        charging['soc'] = charging.apply(lambda row: row['currentSOC'] if row['currentSOC'] < 100 and row['currentSOC'] >= 0 
+                                         else 100 if row['currentSOC'] >= 100 
+                                         else row['soc'], axis=1)
+        charging = charging.drop(columns=['currentSOC'])
+        # charging['soc'] = charging['soc'].astype(int)
         df['charging'] = df.apply(lambda row: True if row['charging'] =='both' else False, axis=1)
     else:
         df['charging'] = False
