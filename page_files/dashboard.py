@@ -60,11 +60,8 @@ def dashboard():
     # Active Blocks
     if serving is not None:
         st.subheader("🚏 Active Blocks")
-        merged_df = pd.merge(serving, df, left_on='coach', right_on='vehicle',
-                                how='inner', suffixes=('', '_y'))
-        merged_df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
-        df = df[~df['vehicle'].isin(merged_df['vehicle'])]
-        show_active_blocks(merged_df)
+        df = df[~df['vehicle'].isin(serving['coach'])]
+        show_active_blocks(serving)
 
     # Actively Charging
     if charging is not None and not charging.empty:
@@ -111,11 +108,11 @@ def get_overview_df():
 
     # add transmission hrs and last seen
     df = make_transmission_hrs(df)
-
+ 
     # make serving df
     if active_blocks is not None and not active_blocks.empty:
         df = pd.merge(active_blocks, df, left_on='coach', right_on='vehicle',
-                             how='left', suffixes=('', '_y'), indicator=True)
+                             how='right', suffixes=('_y', ''), indicator=True)
         df.drop_duplicates(subset='vehicle', keep='first', inplace=True)
         df.rename(columns={'_merge': 'active'}, inplace=True)
         serving = df[df['active'] == 'both']
@@ -123,7 +120,7 @@ def get_overview_df():
         df['active'] = df.apply(lambda row: True if row['active'] =='both' else False, axis=1)
     else:
         df['active'] = False
-
+        
     # make charging df
     if charging_sessions is not None and not charging_sessions.empty:
         df = pd.merge(df, charging_sessions, left_on='vehicle', right_on='vehicle', how='left', suffixes=('', '_y'), indicator=True)

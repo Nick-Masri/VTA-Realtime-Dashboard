@@ -35,7 +35,6 @@ def get_active_blocks():
 
 def show_active_blocks(merged_df=get_active_blocks()):
     if len(merged_df) > 0:
-        st.subheader("Out on Routes")
         st.caption("Predicted Arrival Time from Swiftly")
         # st.write(merged_df)
         # Display the DataFrame
@@ -43,10 +42,15 @@ def show_active_blocks(merged_df=get_active_blocks()):
         # remove timezone again so it displays right
         merged_df['predictedArrival'] = pd.to_datetime(merged_df['predictedArrival']).dt.tz_localize(None)
         merged_df = merged_df.sort_values('transmission_hrs')
+        # none if transmission hrs > 2
+        merged_df['soc'] = merged_df['transmission_hrs'].apply(lambda x: 'N/A' if x > 2 else x)
         merged_df = merged_df[
             ['coach', 'id', 'block_id', 'block_startTime', 'predictedArrival', 'soc',
-             'last_seen']]
-
+            #  'last_seen'
+             ]]
+        
+        # if all socs are none, then remove soc column
+        # merged_df['last_seen'] = merged_df['last_seen'].apply(lambda x: f"{x} ago")
         st.dataframe(merged_df, hide_index=True,
                      use_container_width=True,
                      column_order=['coach', 'soc', 'last_seen', 'id', 'block_id', 'block_startTime', 'block_endTime',
@@ -59,12 +63,8 @@ def show_active_blocks(merged_df=get_active_blocks()):
                         #  "block_endTime": st.column_config.TimeColumn("End Time", format="hh:mmA"),
                          "predictedArrival": st.column_config.TimeColumn("Predicted Arrival Time",
                                                                          format="h:mmA"),
-                         "soc": st.column_config.ProgressColumn("State of Charge",
-                                                                help="Battery Percentage of Bus",
-                                                                format="%d%%",
-                                                                width='medium',
-                                                                min_value=0,
-                                                                max_value=100, ),
+                         "soc": st.column_config.NumberColumn("State of Charge",
+                                                                help="Battery Percentage of Bus",),
                          "odometer": st.column_config.NumberColumn(
                              "Odometer (mi)",
                              help="Bus Odometer Reading in miles",
