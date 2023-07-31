@@ -59,7 +59,7 @@ def dashboard():
 
     # Active Blocks
     if serving is not None:
-        st.subheader("🚏 Active Blocks")
+        st.subheader("🚏 In Service")
         df = df[~df['vehicle'].isin(serving['coach'])]
         show_active_blocks(serving)
 
@@ -86,7 +86,7 @@ def dashboard():
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
         
     # Idle
-    st.subheader("⌛ Idle Buses")
+    st.subheader("⌛ Idle")
     idle = idle.sort_values('transmission_hrs')
     idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
     idle = idle[['vehicle', 'soc', 'last_seen']]
