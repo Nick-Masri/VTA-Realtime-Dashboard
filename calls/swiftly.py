@@ -8,7 +8,7 @@ import data
 def swiftly_call_active_blocks():
     # Fetch data from API
     url = "https://api.goswift.ly/real-time/vta/active-blocks"
-    headers = {"Authorization": "e8201446c114da536ff0a89a4c1c9228"}
+    headers = {"Authorization": st.secrets["SWIFTLY_AUTH"]}
     response = requests.get(url, headers=headers)
     json_data = response.json()
 
@@ -21,32 +21,20 @@ def swiftly_call_active_blocks():
 def swiftly_active_blocks():
     df = swiftly_call_active_blocks()
     if len(df) > 0:
-        # clean df
-        # Explode "block" column into separate rows
-        exploded_df = df.explode("block")
-        exploded_df = exploded_df.reset_index(drop=True)
-        block_df = pd.DataFrame(exploded_df["block"].to_list())
-        block_df = block_df.add_prefix("block_")
+        exploded_df = df.explode("block").reset_index(drop=True)
+        block_df = pd.DataFrame(exploded_df["block"].to_list()).add_prefix("block_")
 
-        # Concatenate exploded DataFrame and block DataFrame
-        df = pd.concat([exploded_df.drop("block", axis=1), block_df], axis=1)
+        df = pd.concat([exploded_df, block_df], axis=1).drop("block", axis=1)
+        df = df.explode('block_vehicle')
 
-        # Expand the 'block_vehicle' column
-        expanded_df = df.explode('block_vehicle')
-        expanded_df = expanded_df[['id', 'block_id', 'block_startTime', 'block_endTime', 'block_vehicle']]
+        vehicle_df = df.block_vehicle.apply(pd.Series).rename(columns={"id": "coach"})
+        route_df = df.block_trip.apply(pd.Series).drop(columns=['id']).rename(columns={"routeId": "id"})
 
-        # Extract vehicle details from 'block_vehicle' column
-        vehicle_df = expanded_df.block_vehicle.apply(pd.Series)
-        vehicle_df = vehicle_df.rename(columns={"id": "coach"})
-
-        # Concatenate expanded DataFrame and vehicle DataFrame
-        df = pd.concat([expanded_df, vehicle_df], axis=1)
+        df = pd.concat([df, vehicle_df, route_df], axis=1)
         df = df[
             ['id', 'block_id', 'block_startTime', 'block_endTime', 'coach', 'isPredictable', 'schAdhSecs']]
 
-        # st.write(df['block_endTime'])
         df['block_endTime'] = pd.to_datetime(df['block_endTime'], errors='coerce', format='%H:%M:%S')
-        # st.write(df['block_endTime'])
         df['predictedArrival'] = df['block_endTime'] + pd.to_timedelta(df['schAdhSecs'], unit='s')
         df['coach'] = df['coach'].astype(str)
         df.drop(columns=['isPredictable', 'schAdhSecs'], inplace=True)
