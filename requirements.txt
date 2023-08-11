@@ -17,5 +17,7 @@ requests
 zeep
 # timezone
 pytz
-# navbar
-streamlit-option-menu
+# optimization 
+matlab
+pyyaml
+gurobipy

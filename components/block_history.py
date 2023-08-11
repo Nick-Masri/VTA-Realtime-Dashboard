@@ -177,6 +177,7 @@ def show_and_format_block_history(blocks, df, key):
             if key == "all" or (key == "vehicle" and not blocks.empty):
 
                 st.write("### Metrics")
+                st.warning("Some vehicles have not transmitted in a while, so the total miles travelled and total kWh metrics are not available or lower than they should be.")
 
 
                 # st.caption("Today")
@@ -235,24 +236,31 @@ def recent_metrics(blocks, days, caption):
     # this week metrics
     diff = datetime.now(pytz.timezone('US/Pacific')) - days
     diff = diff.strftime('%Y-%m-%d')
-    this_week = blocks[blocks['Date'] >= diff]
-    week_avg_kwh_per_mile = round(this_week['kWh per Mile'].mean(), 2)
+    period = blocks[blocks['Date'] >= diff]
+    period_avg_kwh_per_mile = round(period['kWh per Mile'].mean(), 2)
 
-    if np.isnan(week_avg_kwh_per_mile):
-        week_avg_kwh_per_mile = 0
+
+    if np.isnan(period_avg_kwh_per_mile):
+        period_avg_kwh_per_mile = 'N/A'
         delta = None
     else:
-        delta = create_delta(week_avg_kwh_per_mile, avg_kwh_per_mile)
-    
-    week_total_kwh_used = this_week['kWh Used'].sum().astype(int)
-    week_total_miles_travelled = this_week['Miles Travelled'].sum().astype(int)
-    week_total_blocks_served = len(this_week)
+        delta = create_delta(period_avg_kwh_per_mile, avg_kwh_per_mile)
 
-    if week_total_blocks_served != 0:
+
+    period_total_blocks_served = len(period)
+    calc_period = period.dropna(how='any')
+    if len(calc_period) < len(period):
+        period_total_kwh_used = 'N/A'
+        period_total_miles_travelled = 'N/A'
+    else:
+        period_total_kwh_used = calc_period['kWh Used'].sum().astype(int)
+        period_total_miles_travelled = calc_period['Miles Travelled'].sum().astype(int)
+
+    if period_total_blocks_served != 0:
 
         st.caption(caption)
         col1, col2, col3, col4 = st.columns(4)
-        col1.metric("Blocks Served", week_total_blocks_served)
-        col2.metric("Total Miles Travelled", week_total_miles_travelled)
-        col3.metric("Total kWh Used", week_total_kwh_used)
-        col4.metric("Average kWh / mile", week_avg_kwh_per_mile, delta=delta)
+        col1.metric("Blocks Served", period_total_blocks_served)
+        col2.metric("Total Miles Travelled", period_total_miles_travelled)
+        col3.metric("Total kWh Used", period_total_kwh_used)
+        col4.metric("Average kWh / mile", period_avg_kwh_per_mile, delta=delta)

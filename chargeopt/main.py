@@ -85,9 +85,8 @@ nights = ["sunny", "sunny", "sunny", "sunny", "sunny", "sunny", "sunny"]
 solarPowAvail = solarKWH * np.array(eng.initSolarPowModel(season, D, mornings, noons, nights))
 solarPowAvail = solarPowAvail.reshape(T)
 
-# Generate Grid Availability Profile
-gridPowAvail = np.array(eng.initGridAvailability('gridAvailData.xlsx', D))
-gridPowAvail = 500 * gridPowAvail.reshape(T)
+# Generate Grid Availability Profile T size np array of 1
+gridPowAvail = np.ones(T) * gridKWH
 
 # Generate Grid Pricing Profile
 gridPowPrice = np.array(eng.initGridPricingModel(D))
