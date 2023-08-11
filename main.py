@@ -7,7 +7,6 @@ from page_files.vehicles import show_vehicles
 from page_files.chargers import show_chargers
 from components.optimization import opt_form
 from calls.error_email import send_email
-from streamlit_option_menu import option_menu
 
 
 
@@ -18,7 +17,7 @@ from streamlit_option_menu import option_menu
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History"])
+    dash, veh, hist, opt = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "⚙️ Optimization"])
 
     with dash:
         dashboard()
@@ -29,8 +28,8 @@ def main():
     with hist:
         show_history()
 
-    # with opt:
-    #     opt_form()
+    with opt:
+        opt_form()
 
 
 

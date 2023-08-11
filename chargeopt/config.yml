@@ -1,7 +1,4 @@
 chargerEff: 0.94
 chargerPower: 50
 ebMaxKwh: 440
-main: False
-solar: False
 gridMaxPower: 500
-solarMaxPower: 0

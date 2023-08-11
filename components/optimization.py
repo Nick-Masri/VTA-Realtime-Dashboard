@@ -4,12 +4,13 @@ from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
+import chargeopt
 
 def opt_form():
 
+    supabase = False
+
     serving, charging, idle, offline, df = get_overview_df()
-    blocks = supabase_blocks(active=False)
-    blocks = blocks.drop_duplicates(subset=['block_id'])
 
     # Mileage Data
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
@@ -36,18 +37,47 @@ def opt_form():
                                             column_order=['Select', 'vehicle', 'soc', 'status', 'last_seen'])
         with block_tab:
             st.write("# Blocks")
-            blocks = blocks[['id', 'block_id', 'block_startTime', 'block_endTime']]
-            blocks['Select'] = True
-            blocks['Mileage'] = blocks['block_id'].map(mileages)
-            blocks['block_startTime'] = pd.to_datetime(blocks['block_startTime'], format="%H:%M:%S")
-            blocks['block_endTime'] = pd.to_datetime(blocks['block_endTime'], format="%H:%M:%S")
-            blocks['block_id'] = blocks['block_id'].astype(str)
+    
+
+            # if using supabase
+            if supabase:
+                blocks = supabase_blocks(active=False)
+                blocks = blocks.drop_duplicates(subset=['block_id'])
+                blocks = blocks[['id', 'block_id', 'block_startTime', 'block_endTime']]
+                blocks['Select'] = True
+                blocks['Mileage'] = blocks['block_id'].map(mileages)
+                blocks['block_startTime'] = pd.to_datetime(blocks['block_startTime'], format="%H:%M:%S")
+                blocks['block_endTime'] = pd.to_datetime(blocks['block_endTime'], format="%H:%M:%S")
+                blocks['block_id'] = blocks['block_id'].astype(str)
+            else:
+
+                block_data = {
+                'block_id': ['7771', '7172', '6682', '6675', '6180', '7073', '7774', '7173/sx', '6686'],
+                'Mileage': [148, 119.9, 144.4, 144.4, 149.3, 113.3, 48.3, 29.2, 55.0]
+                }
+                blocks = pd.DataFrame(block_data)
+                # highlight as many blocks as there are buses  
+                num_buses = len(edited_buses_df[edited_buses_df.Select == True])
+                for i in range(num_buses):
+                    blocks.loc[i, 'Select'] = True
+
+                # if select is not true, make false
+                blocks['Select'] = blocks['Select'].fillna(False)
+                
+                # make start time and end time 6AM and 6PM (make it a time object)
+                blocks['block_startTime'] = pd.to_datetime('6:00:00', format="%H:%M:%S")
+                blocks['block_endTime'] = pd.to_datetime('18:00:00', format="%H:%M:%S")
+
+                # make id the first two digits of the block number
+                blocks['id'] = blocks['block_id'].str[:2]
+
+            
             edited_blocks_df = st.data_editor(blocks, hide_index=True, use_container_width=True,
                         column_config={
-                            "id": st.column_config.NumberColumn(
-                                    "Route ID",
-                                    disabled=False
-                            ),
+                                "id": st.column_config.NumberColumn(
+                                        "Route ID",
+                                        disabled=False
+                                ),
                                 "block_id": st.column_config.TextColumn(
                                     "Block ID",
                                     disabled=False
@@ -90,26 +120,32 @@ def opt_form():
                                                 column_order=['Select', 'stationName', 'networkStatus'])
             
         with options:
+            st.info("Route Assignment Options Coming Soon")
+            run_type = st.radio("Route Assignment", options=['Provide Assignments', 'Heuristic', 'Optimal'], disabled=True)
 
-            run_type = st.radio("Route Selection", options=['Provide Assignments', 'Heuristic', 'Optimal'])
+            # display current config options from chargeopt/config.yml
             submit = st.form_submit_button("Submit")
 
-        if submit:
-            selected_buses = edited_buses_df[edited_buses_df.Select == True]
-            selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
-            selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
-            col1, col2, col3 = st.columns(3)
-            col1.write("Buses:")
-            selected_buses = selected_buses[['vehicle', 'soc', 'status']]
-            col1.dataframe(selected_buses, hide_index=True, use_container_width=True)
-            col2.write("Blocks:")
-            selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
-            selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
-            col2.dataframe(selected_blocks, hide_index=True, use_container_width=True)
-            col3.write("Chargers:")
-            selected_chargers = selected_chargers[['stationName']]
-            col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
+    if submit:
+        selected_buses = edited_buses_df[edited_buses_df.Select == True]
+        selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
+        selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
+        col1, col2, col3 = st.columns(3)
+        col1.write("Buses:")
+        selected_buses = selected_buses[['vehicle', 'soc', 'status']]
+        col1.dataframe(selected_buses, hide_index=True, use_container_width=True)
+        col2.write("Blocks:")
+        selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
+        # make start time and end time hours and minutes, not military time, and include AM/PM)
+        selected_blocks['block_startTime'] = selected_blocks['block_startTime'].dt.strftime("%I:%M %p")
+        selected_blocks['block_endTime'] = selected_blocks['block_endTime'].dt.strftime("%I:%M %p")
+        selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
+        col2.dataframe(selected_blocks, hide_index=True, use_container_width=True)
+        col3.write("Chargers:")
+        selected_chargers = selected_chargers[['stationName']]
+        col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
-            # solve
-            # st.write("Solving...")
-            # results = chargeopt.run(selected_buses, selected_blocks, selected_chargers)
+        results = chargeopt.solve(selected_buses, selected_blocks, selected_chargers)
+        chargeopt.view_results(results)
+        st.toast("Solving...")
+        
