@@ -193,7 +193,7 @@ def show_and_format_block_history(blocks, df, key):
                 recent_metrics(blocks, timedelta(days=1), "Today")
                 recent_metrics(blocks, timedelta(days=7), "Last 7 Days")
 
-                st.caption("Month of July")
+                st.caption("Since July 1st")
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Blocks Served", total_blocks_served)
                 col2.metric("Total Miles Travelled", total_miles_travelled)
