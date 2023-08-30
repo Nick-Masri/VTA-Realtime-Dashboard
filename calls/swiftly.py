@@ -27,10 +27,9 @@ def swiftly_active_blocks():
         df = pd.concat([exploded_df, block_df], axis=1).drop("block", axis=1)
         df = df.explode('block_vehicle')
         vehicle_df = df.block_vehicle.apply(pd.Series).rename(columns={"id": "coach"})
-        route_df = df.block_trip.apply(pd.Series).drop(columns=['id'])
+        route_df = df.block_trip.apply(pd.Series)
         df = pd.concat([df, vehicle_df, route_df], axis=1)
-        df = df[
-            ['id', 'block_id', 'block_startTime', 'block_endTime', 'coach', 'isPredictable', 'schAdhSecs']]
+        df = df[['id', 'block_id', 'block_startTime', 'block_endTime', 'coach', 'isPredictable', 'schAdhSecs']]
 
         df['block_endTime'] = pd.to_datetime(df['block_endTime'], errors='coerce', format='%H:%M:%S')
         df['predictedArrival'] = df['block_endTime'] + pd.to_timedelta(df['schAdhSecs'], unit='s')
