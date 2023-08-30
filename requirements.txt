@@ -17,7 +17,3 @@ requests
 zeep
 # timezone
 pytz
-# optimization 
-matlab
-pyyaml
-gurobipy

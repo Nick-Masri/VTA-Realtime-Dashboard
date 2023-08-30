@@ -1,6 +1,0 @@
-gurobipy
-matlab
-matlabengineforpython
-numpy
-pandas
-PyYAML
