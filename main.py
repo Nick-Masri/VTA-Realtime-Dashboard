@@ -3,9 +3,6 @@ st.set_page_config(page_title="VTA E-Bus Portal", page_icon="🚌")
 from page_files.dashboard import dashboard
 from page_files.history import show_history
 from page_files.vehicles import show_vehicles
-from page_files.chargers import show_chargers
-from calls.error_email import send_email
-
 
 
 ##########################################################
