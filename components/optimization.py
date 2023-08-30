@@ -4,7 +4,7 @@ from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
-import chargeopt
+from chargeopt.optimization import ChargeOpt
 
 def opt_form():
 
@@ -145,7 +145,7 @@ def opt_form():
         selected_chargers = selected_chargers[['stationName']]
         col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
-        results = chargeopt.solve(selected_buses, selected_blocks, selected_chargers)
-        chargeopt.view_results(results)
+        results = ChargeOpt.solve(selected_buses, selected_blocks, selected_chargers)
+        st.write(results)
         st.toast("Solving...")
         
