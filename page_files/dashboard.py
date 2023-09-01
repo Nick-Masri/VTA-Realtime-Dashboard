@@ -58,17 +58,17 @@ def dashboard():
     column_config = data.dash_column_config
 
     # Active Blocks
-    if serving is not None:
+    if serving is not None and not serving.empty:
         st.subheader("🚏 In Service")
         df = df[~df['vehicle'].isin(serving['coach'])]
         show_active_blocks(serving)
 
     # Actively Charging
+    charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
+    charging = charging.sort_values('vehicle', ascending=True)
     if charging is not None and not charging.empty:
         st.subheader("🔌 Currently Charging")
         # current soc if less than equal to 100 and above 0 otherwise soc
-        charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
-        charging = charging.sort_values('vehicle', ascending=True)
         st.dataframe(charging, hide_index=True, use_container_width=True, 
                         column_order=[
                              "vehicle", "stationName", "soc", "totalSessionDuration"],
@@ -95,10 +95,12 @@ def dashboard():
         st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
     # Offline
-    st.subheader("⚠️ Offline for more than a day")
     offline = offline.sort_values('transmission_hrs')
     offline = offline[['vehicle', 'last_seen', 'odometer']]
-    st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
+    if offline is not None and not offline.empty:
+        st.subheader("⚠️ Offline for more than a day")
+        st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
+
 
 def get_overview_df():
     # initialize
