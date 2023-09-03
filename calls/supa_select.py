@@ -37,6 +37,7 @@ def supabase_soc():
     response = supabase.table('soc').select("*").gt("created_at", yesterday).execute()
     data = response.data
     df = pd.DataFrame(data)
+    # st.write(df)
     df['vehicle'] = df['vehicle'].astype(str)
     df['created_at'] = pd.to_datetime(df['created_at'])
     df.sort_values(by='created_at', ascending=False, inplace=True)
