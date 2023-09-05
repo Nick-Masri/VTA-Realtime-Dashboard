@@ -5,6 +5,7 @@ from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
 from chargeopt.optimization import ChargeOpt
+import os
 
 def opt_form():
 
@@ -130,10 +131,13 @@ def opt_form():
         selected_buses = edited_buses_df[edited_buses_df.Select == True]
         selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
         selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
+
         col1, col2, col3 = st.columns(3)
+
         col1.write("Buses:")
         selected_buses = selected_buses[['vehicle', 'soc', 'status']]
         col1.dataframe(selected_buses, hide_index=True, use_container_width=True)
+        
         col2.write("Blocks:")
         selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
         # make start time and end time hours and minutes, not military time, and include AM/PM)
@@ -141,11 +145,20 @@ def opt_form():
         selected_blocks['block_endTime'] = selected_blocks['block_endTime'].dt.strftime("%I:%M %p")
         selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
         col2.dataframe(selected_blocks, hide_index=True, use_container_width=True)
+
         col3.write("Chargers:")
         selected_chargers = selected_chargers[['stationName']]
         col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
-        results = ChargeOpt.solve(selected_buses, selected_blocks, selected_chargers)
+        opt = ChargeOpt(selected_buses, selected_blocks, selected_chargers)
+
+        results = opt.solve()
+
+        if results == 'Optimal solution found':
+            results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
+            results_df.dropna(inplace=True)
+            st.dataframe(results_df, use_container_width=True)
+
         st.write(results)
         st.toast("Solving...")
         

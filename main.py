@@ -17,7 +17,7 @@ from calls.error_email import send_email
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist, opt = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "Optimization"])
+    dash, veh, hist, opt = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization"])
 
     with dash:
         dashboard()
