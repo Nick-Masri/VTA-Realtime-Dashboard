@@ -3,17 +3,17 @@ from gurobipy import GRB
 import numpy as np
 import pandas as pd
 import datetime
-import sys
 import yaml
 from chargeopt.helpers import initGridPricing, initRoutes
-import matlab.engine
+import os
 import warnings
+import sys
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class ChargeOpt:
-    def __init__(self, buses, blocks, chargers):
+    def __init__(self, buses, routes, chargers):
         self.buses = buses
-        self.blocks = blocks
+        self.routes = routes
         self.chargers = chargers
 
     def solve(self):
@@ -25,18 +25,20 @@ class ChargeOpt:
         # [{coach}]
         B = len(self.buses)
 
-        routes = self.blocks
+        routes = self.routes
         R = len(routes)
 
         #####################################
         # Config 
         #####################################
         # load config file
-        with open("config.yml", "r") as file:
+        config_path = os.path.join(os.getcwd(), "chargeopt/config.yml")
+        with open(config_path, "r") as file:
             config = yaml.safe_load(file)
 
-        # load filename to save results to
-        filename = config["filename"]
+        # make filename based on date
+        current_datetime = datetime.datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
+        filename = f'chargeopt_{current_datetime}'
 
         eB_max = config["ebMaxKwh"]
         eB_min = int(eB_max * .2)
@@ -47,16 +49,7 @@ class ChargeOpt:
         pCB_ub = config["chargerPower"]
         eff_CB = config["chargerEff"]
 
-        # main storage params
-        eM_max = config['emMaxKwh']
-        eM_min = int(eM_max * .2)
-        powerCM_ub = config['emChargePower']
-        powerDM_ub = config['emDischargePower']
-        eff_CM = config['emChargeEff']
-        eff_DM = config['emDischargeEff']
-
-        # powerbs
-        solarKWH = config['solarMaxPower']
+        # power
         gridKWH = config['gridMaxPower']
 
         # time variables
@@ -69,9 +62,11 @@ class ChargeOpt:
         # Init MATLAB engine for setup
         #####################################
         # Start a MATLAB engine session
-        eng = matlab.engine.start_matlab()
 
-        [departure, arrival, eRoute, report] = initRoutes(routes, D, eB_range, pCB_ub);
+        [departure, arrival, eRoute, report] = initRoutes(routes, eB_range, pCB_ub);
+        if report != 'All Clear':
+            sys.exit(report)
+
         # for loop for tDep and tRet
         tDep = np.zeros((R, D), dtype=int)
         tRet = np.zeros((R, D), dtype=int)
@@ -95,11 +90,7 @@ class ChargeOpt:
         gridPowAvail = gridKWH
 
         # Generate Grid Pricing Profile
-        gridPowPrice = np.array(eng.initGridPricingModel(D))
-        gridPowPrice = gridPowPrice.reshape(T)
-
-        # Close the MATLAB engine session
-        eng.quit()
+        gridPowPrice = initGridPricing(D)
 
         # Create a new model
         m = gp.Model("Charge opt")
@@ -159,7 +150,7 @@ class ChargeOpt:
         # Power Availability
         #####################################
         # Grid Constraints
-        m.addConstrs((gridPowToB.sum('*', t) <= gridPowAvail[t] for t in range(T)), "grid power total")
+        m.addConstrs((gridPowToB.sum('*', t) <= gridPowAvail for t in range(T)), "grid power total")
 
         #####################################
         # Bus Battery operation
@@ -189,8 +180,12 @@ class ChargeOpt:
 
         # TODO Change to use soc
         # add constraints for initial and final state of battery energy
-        for b, bus in self.buses:
-            soc = bus['soc']
+        for b in range(B):
+            soc = self.buses.iloc[b, 1]
+            print(soc)
+            # remove % and convert to float
+            soc = soc.replace('%', '')
+            soc = float(soc) / 100
             m.addConstr(eB[b, 0] == eB_max * soc)
             m.addConstr(eB[b, 0] == eB_max * soc)
 
@@ -235,7 +230,7 @@ class ChargeOpt:
         #####################################
         # Exporting Results
         #####################################
-
+        
         # Checking if it is feasible
         if m.status != gp.GRB.INFEASIBLE:
 
@@ -263,11 +258,10 @@ class ChargeOpt:
 
             dfs = [powerCB_df, gridpowtoB_df,  eB_df]
             twodim_df = pd.concat(dfs, axis=1, join='inner')
+            path = os.path.join(os.getcwd(), "chargeopt")
 
-            # add date to filename
-            filename = f'{filename}_{datetime.datetime.now().strftime("%m-%d-%Y_%H-%M-%S")}'
             # export to csv
-            twodim_df.to_csv(f'outputs/{filename}.csv')
+            twodim_df.to_csv(f'{path}/outputs/{filename}.csv')
 
             ## Gen assignments
             data = []
@@ -280,14 +274,13 @@ class ChargeOpt:
 
             assignment_df = pd.DataFrame(data)
             assignment_df = assignment_df.set_index(['bus', 'day', 'route'])
-            assignment_df.to_csv(f'outputs/assignments_{filename}.csv')
+            assignment_df.to_csv(f'{path}/outputs/assignments_{filename}.csv')
 
             # create the results DataFrame
             results_df = pd.DataFrame(columns=["case_name", "numBuses", "ebMaxKwh", "numChargers", "chargerPower", "chargerEff",
-                                            "routes", "emMaxKwh", "emChargePower", "emDischargePower", "emChargeEff",
-                                            "emDischargeEff", "solarMaxPower", "gridMaxPower", "obj_val", "sol_time", "date",
+                                            "routes", "gridMaxPower", "obj_val", "sol_time", "date",
                                             "type"])
-            results_file = 'results.csv'
+            results_file = f'{path}/outputs/results.csv'
 
             # try to read in the current results file (if it exists)
             try:
@@ -313,20 +306,23 @@ class ChargeOpt:
                     "chargerPower": pCB_ub,
                     "chargerEff": eff_CB,
                     "routes": str(routes),
-                    "emMaxKwh": eM_max,
-                    "emChargePower": powerCM_ub,
-                    "emDischargePower": powerDM_ub,
-                    "emChargeEff": eff_CM,
-                    "emDischargeEff": eff_DM,
-                    "solarMaxPower": solarKWH,
                     "gridMaxPower": gridKWH,
                     "obj_val": obj_val,
                     "sol_time": sol_time,
                     "date": current_date,
-                    "type": config['runType']
+                    # "type": config['runType']
                 },
                 ignore_index=True,
             )
 
             # write the results to the results.csv file
             results_df.to_csv(results_file, index=False)
+
+        if m.status == gp.GRB.INFEASIBLE:
+           status = "Model is infeasible"
+        elif m.status == gp.GRB.OPTIMAL:
+            status = "Optimal solution found"
+        else:
+            status = "Model Error"
+
+        return status 
