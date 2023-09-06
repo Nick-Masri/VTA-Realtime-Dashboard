@@ -2,14 +2,15 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
+import math
 
 def time_to_quarter(datetime_str):
     dt = datetime.strptime(datetime_str, '%I:%M %p')
     total_minutes = dt.hour * 60 + dt.minute
-    quarter_hour = round(total_minutes / 15)
+    quarter_hour = math.ceil(total_minutes / 15)
     return quarter_hour
 
-def initGridPricing(numDays):
+def init_grid_pricing(numDays, startTime):
     # This function sets the price per kWh of grid electricity
     #       time increment: 15 minutes
 
@@ -17,11 +18,12 @@ def initGridPricing(numDays):
     #   Peak:       .59002 dollars per kwh     12:00 - 18:00
     #   Partial:    . 29319 dollars per kwh     08:30 - 12:00;   18:00 - 21:30
     #   Off Peak:   .22161 dollars per kwh     00:00 - 8:30;    21:30 - 24:00
-
+    startTime = startTime.strftime('%I:%M %p')
+    startTimeNum = time_to_quarter(startTime)
     # Create list of prices for single day
     grid_pow_price = [0] * 96
     for t in range(96):
-        minutes = 15 * (t + 1)
+        minutes = 15 * (t + 1) + startTimeNum
         if (minutes > 12 * 60) and (minutes <= 18 * 60):
             grid_pow_price[t] = 0.59002
         elif (((minutes > 8.5 * 60) and (minutes <= 12 * 60)) or
@@ -38,12 +40,12 @@ def initGridPricing(numDays):
     return grid_pow_price
 
 
-def initRoutes(routeDF, eB_range, pCB_max):
+def init_routes(routeDF, eB_range, pCB_max):
 
     # Determine the number of busses
     numRoutes = len(routeDF)
 
-    kwhPerMile = 2
+    kwhPerMile = 2.5
     
     routeDF['block_startTime'] = routeDF['block_startTime'].apply(time_to_quarter)
     routeDF['block_endTime'] = routeDF['block_endTime'].apply(time_to_quarter)
@@ -51,7 +53,6 @@ def initRoutes(routeDF, eB_range, pCB_max):
     routeDF['block_startTime'] = routeDF['block_startTime'].astype(int)
     routeDF['block_endTime'] = routeDF['block_endTime'].astype(int)
     
-    print(routeDF['block_startTime'])
     departure = routeDF['block_startTime'].to_numpy()
     arrival = routeDF['block_endTime'].to_numpy()
 
@@ -73,9 +74,12 @@ def initRoutes(routeDF, eB_range, pCB_max):
     report = 'All Clear'
     if routeLateReturn and routeOutOfRange:
         report = 'Multiple Route Issues'
+        print('Multiple Route Issues')
     elif routeLateReturn:
         report = 'Route Returns Too Late'
+        print('Route Returns Too Late')
     elif routeOutOfRange:
         report = 'Route Out Of Range'
+        print('Route Out Of Range')
 
     return departure, arrival, eRoute, report

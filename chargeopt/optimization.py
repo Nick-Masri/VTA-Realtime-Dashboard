@@ -2,12 +2,13 @@ import gurobipy as gp
 from gurobipy import GRB
 import numpy as np
 import pandas as pd
-import datetime
+from datetime import datetime
 import yaml
-from chargeopt.helpers import initGridPricing, initRoutes
+from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
 import os
 import warnings
 import sys
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class ChargeOpt:
@@ -15,6 +16,7 @@ class ChargeOpt:
         self.buses = buses
         self.routes = routes
         self.chargers = chargers
+        self.startTime = datetime.now()
 
     def solve(self):
 
@@ -37,7 +39,7 @@ class ChargeOpt:
             config = yaml.safe_load(file)
 
         # make filename based on date
-        current_datetime = datetime.datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
+        current_datetime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
         filename = f'chargeopt_{current_datetime}'
 
         eB_max = config["ebMaxKwh"]
@@ -63,8 +65,9 @@ class ChargeOpt:
         #####################################
         # Start a MATLAB engine session
 
-        [departure, arrival, eRoute, report] = initRoutes(routes, eB_range, pCB_ub);
+        [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub);
         if report != 'All Clear':
+            return None
             sys.exit(report)
 
         # for loop for tDep and tRet
@@ -90,7 +93,7 @@ class ChargeOpt:
         gridPowAvail = gridKWH
 
         # Generate Grid Pricing Profile
-        gridPowPrice = initGridPricing(D)
+        gridPowPrice = init_grid_pricing(D, self.startTime)
 
         # Create a new model
         m = gp.Model("Charge opt")
@@ -133,9 +136,10 @@ class ChargeOpt:
         m.addConstrs((Change[b, t] <= 2 - chargerUse[b, t - 1] - chargerUse[b, t] for b in range(B) for t in range(1, T)),
                     "change chargeruse link")
 
+        # TODO: fix this, because it's not working based on the results shown
         m.addConstrs(sum(Change[b, t] for t in tDay[d]) <= 2 for b in range(B) for d in range(D))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 6 * charging[b, d] for b in range(B) for d in range(D))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
+        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 12 * charging[b, d] for b in range(B) for d in range(D))
+        # m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
 
         # add constraint for powerCB
         m.addConstrs(
@@ -178,7 +182,6 @@ class ChargeOpt:
                             routeRequirement += eRoute[r] * assignment[b, d, r]
                     m.addConstr(eB[b, t] >= eB_min + routeRequirement)
 
-        # TODO Change to use soc
         # add constraints for initial and final state of battery energy
         for b in range(B):
             soc = self.buses.iloc[b, 1]
@@ -222,7 +225,7 @@ class ChargeOpt:
         m.setObjective(obj_expr, gp.GRB.MINIMIZE)
 
         # Set the objective gap to 0.5% (only for flexibility tests)
-        m.setParam('MIPGap', 0.005)
+        # m.setParam('MIPGap', 0.005)
 
         # Solve the model
         m.optimize()
@@ -253,10 +256,10 @@ class ChargeOpt:
                 return df
 
             powerCB_df = genDF('powerCB')
-            gridpowtoB_df = genDF('gridPowToB')
+            # gridpowtoB_df = genDF('gridPowToB')
             eB_df = genDF('eB')
 
-            dfs = [powerCB_df, gridpowtoB_df,  eB_df]
+            dfs = [powerCB_df,  eB_df]
             twodim_df = pd.concat(dfs, axis=1, join='inner')
             path = os.path.join(os.getcwd(), "chargeopt")
 
@@ -294,7 +297,7 @@ class ChargeOpt:
             sol_time = m.Runtime
 
             # get current date in month/day/year format
-            current_date = datetime.datetime.now().strftime("%m/%d/%Y")
+            current_date = datetime.now().strftime("%m/%d/%Y")
 
             # append the results to the DataFrame
             results_df = results_df.append(
