@@ -62,9 +62,6 @@ def chargepoint_active_sessions():
         charge_df = pd.json_normalize(charge_data)
         if len(charge_df) > 0:
             charge_df['stationName'] = name
-            # st.write(charge_df)
-            # TODO: add total time not charging and if it exists 
-            # then add a checkbox saying able to remove
             charge_df['Charging'] = True
             charge_df = charge_df[["stationName", "Energy", "startTime", "endTime", 
                                    "totalChargingDuration", "totalSessionDuration",
