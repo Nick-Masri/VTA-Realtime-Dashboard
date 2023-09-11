@@ -7,6 +7,7 @@ import yaml
 from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
 import os
 import warnings
+import streamlit as st
 import sys
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -49,16 +50,18 @@ class ChargeOpt:
         # charger params
         numChargers = len(self.chargers)
         pCB_ub = config["chargerPower"]
-        eff_CB = config["chargerEff"]
 
         # power
         gridKWH = config['gridMaxPower']
 
         # time variables
-        D = 2
+        D = 3
         dt = 0.25
+        startTimeNum = time_to_quarter(self.startTime.strftime('%I:%M %p'))
         # TODO: Fix time so there is a start time and end time
-        T = int(24 * (1 / dt) * D)
+        T = D * 96
+        optimized_time = [t for t in range(startTimeNum, T)]
+        print(T)
                 
         #####################################
         # Init MATLAB engine for setup
@@ -88,12 +91,10 @@ class ChargeOpt:
         #########################################
         # Input data generation
         #########################################
-
-        # Generate Grid Availability Profile T size np array of 1
         gridPowAvail = gridKWH
 
         # Generate Grid Pricing Profile
-        gridPowPrice = init_grid_pricing(D, self.startTime)
+        gridPowPrice = init_grid_pricing(D)
 
         # Create a new model
         m = gp.Model("Charge opt")
@@ -112,8 +113,10 @@ class ChargeOpt:
         chargerUse = m.addVars(B, T, vtype=gp.GRB.BINARY, name="chargerUse")
         T1 = m.addVars(B, T, vtype=gp.GRB.BINARY, name="T1")
         T2 = m.addVars(B, T, vtype=gp.GRB.BINARY, name="T2")
-        Change = m.addVars(B, T, vtype=gp.GRB.BINARY, name="Change")
+        change = m.addVars(B, T, vtype=gp.GRB.BINARY, name="change")
         charging = m.addVars(B, D, vtype=gp.GRB.BINARY, name="charging")
+        tracker = m.addVars(B, T, vtype=gp.GRB.BINARY, name="tracker")
+        tracker_b = m.addVars(B, T, vtype=gp.GRB.BINARY, name="tracker_b")
         assignment = m.addVars(B, D, R, vtype=gp.GRB.BINARY, name="assignment")
         m.update()
 
@@ -124,30 +127,29 @@ class ChargeOpt:
         #####################################
         # Charging Constraints
         #####################################
-        m.addConstrs((Change[b, t] == T1[b, t] + T2[b, t] for b in range(B) for t in range(T)), "Change link")
+        m.addConstrs((change[b, t] == T1[b, t] + T2[b, t] for b in range(B) for t in range(T)), "change link")
 
-        m.addConstrs((T1[b, 0] == 0 for b in range(B)), "T1 init")
-        m.addConstrs((T2[b, 0] == 0 for b in range(B)), "T2 init")
+        m.addConstrs((T1[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T1 init")
+        m.addConstrs((T2[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T2 init")
 
         m.addConstrs((T1[b, t] - T2[b, t] == chargerUse[b, t] - chargerUse[b, t - 1] for b in range(B) for t in range(1, T)),
                     "t chargeruse link 1")
-        m.addConstrs((Change[b, t] <= chargerUse[b, t - 1] + chargerUse[b, t] for b in range(B) for t in range(1, T)),
+        m.addConstrs((change[b, t] <= chargerUse[b, t - 1] + chargerUse[b, t] for b in range(B) for t in range(1, T)),
                     "t chargeruse link 2")
-        m.addConstrs((Change[b, t] <= 2 - chargerUse[b, t - 1] - chargerUse[b, t] for b in range(B) for t in range(1, T)),
+        m.addConstrs((change[b, t] <= 2 - chargerUse[b, t - 1] - chargerUse[b, t] for b in range(B) for t in range(1, T)),
                     "change chargeruse link")
-
-        # TODO: fix this, because it's not working based on the results shown
-        m.addConstrs(sum(Change[b, t] for t in tDay[d]) <= 2 for b in range(B) for d in range(D))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 12 * charging[b, d] for b in range(B) for d in range(D))
-        # m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
+        
+        m.addConstrs(sum(change[b, t] for t in range(T)) <= 2 for b in range(B))
+        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 6 * charging[b, d] for b in range(B) for d in range(D))
+        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
 
         # add constraint for powerCB
-        m.addConstrs(
-            (powerCB[b, t] == (gridPowToB[b, t]) for t in range(T) for b in range(B)),
+        m.addConstrs((powerCB[b, t] == (gridPowToB[b, t]) for t in range(T) for b in range(B)),
             "charger power limit")
 
         # add constraints to connect charger use to charger power
         m.addConstrs(powerCB[b, t] <= pCB_ub * chargerUse[b, t] for b in range(B) for t in range(T))
+        m.addConstrs(powerCB[b, t] >= chargerUse[b, t] for b in range(B) for t in range(T))
         m.addConstrs(sum(chargerUse[b, t] for b in range(B)) <= numChargers for t in range(T))
 
         #####################################
@@ -169,7 +171,7 @@ class ChargeOpt:
                         for r in range(R):
                             if t == tRet[r][d]:
                                 routeDepletion += eRoute[r] * assignment[b, d, r]
-                        m.addConstr(eB[b, t] == eB[b, t - 1] + dt * powerCB[b, t - 1] * eff_CB - routeDepletion)
+                        m.addConstr(eB[b, t] == eB[b, t - 1] + dt * powerCB[b, t - 1] - routeDepletion)
 
         # add constraints for route requirement
         for b in range(B):
@@ -189,10 +191,10 @@ class ChargeOpt:
             # remove % and convert to float
             soc = soc.replace('%', '')
             soc = float(soc) / 100
-            m.addConstr(eB[b, 0] == eB_max * soc)
-            m.addConstr(eB[b, 0] == eB_max * soc)
+            m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
+            m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
 
-        m.addConstrs(eB[b, T - 1] == eB_max * soc for b in range(B))
+        m.addConstrs(eB[b, T - 1] >= eB_max * soc for b in range(B))
 
         #####################################
         # Route Coverage Constraints
@@ -203,29 +205,40 @@ class ChargeOpt:
                     for t in range(tDep[r][d], tRet[r][d] + 1):
                         m.addConstr(chargerUse[b, t] + assignment[b, d, r] <= 1)
 
-        m.addConstrs(assignment.sum('*', d, r) == 1 for r in range(R) for d in range(D))
+        m.addConstrs(assignment.sum('*', d, r) == 1 for r in range(R) for d in range(1, 2))
         m.addConstrs(assignment.sum(b, d, '*') <= 1 for b in range(B) for d in range(D))
                 
+        # time shift constrains
+        m.addConstrs(powerCB[b, t] == 0 for b in range(B) for t in range(startTimeNum))
+        m.addConstrs(gridPowToB[b, t] == 0 for b in range(B) for t in range(startTimeNum))
+        m.addConstrs(chargerUse[b, t] == 0 for b in range(B) for t in range(startTimeNum))
+
         # make the model static
         # TODO: fix this so that the assignemnts use the heuristic
-        m.addConstrs(assignment[b, d, b] == 1 for b in range(B) for d in range(D))
+        # m.addConstrs(assignment[b, d, b] == 1 for b in range(B) for d in range(D))
 
+        # charge tracking to avoid <49kwh when power is available
+        # tracker_b = 1 if eB > 49*.25 = 12.25
+        M = 1000
 
-        ###################################
+        m.addConstrs(((eB_max - eB[b, t]) + M*tracker[b, t] >= (pCB_ub*dt) ) for b in range(B) for t in optimized_time)
+        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]) for b in range(B) for t in optimized_time)
+        m.addConstrs((tracker[b, t] + tracker_b[b, t] == 1) for b in range(B) for t in optimized_time)
+        # m.addConstrs(powerCB[b, t] >= pCB_ub * tracker_b[b, t]*chargerUse[b, t] for b in range(B) for t in optimized_time)
+        # m.addConstrs(powerCB[b, t]*chargerUse[b, t] >= )
+        # ###################################
         # Setting Objective and Solving
         ###################################
         sums_over_buses = [sum(gridPowToB[b, t] for b in range(B)) for t in range(T)]
+        # check size
+        assert len(sums_over_buses) == T
 
-        # Convert the list to a numpy array and multiply it element-wise with gridPowPrice
         obj_coeffs = np.array(sums_over_buses)
         obj_vals = obj_coeffs * gridPowPrice
 
         # Create a LinExpr object from the array using the quicksum method
         obj_expr = 0.25 * gp.quicksum(obj_vals)
         m.setObjective(obj_expr, gp.GRB.MINIMIZE)
-
-        # Set the objective gap to 0.5% (only for flexibility tests)
-        # m.setParam('MIPGap', 0.005)
 
         # Solve the model
         m.optimize()
@@ -256,10 +269,11 @@ class ChargeOpt:
                 return df
 
             powerCB_df = genDF('powerCB')
+            chargerUse_df = genDF('chargerUse')
             # gridpowtoB_df = genDF('gridPowToB')
             eB_df = genDF('eB')
 
-            dfs = [powerCB_df,  eB_df]
+            dfs = [powerCB_df,  eB_df, chargerUse_df]
             twodim_df = pd.concat(dfs, axis=1, join='inner')
             path = os.path.join(os.getcwd(), "chargeopt")
 
@@ -307,7 +321,6 @@ class ChargeOpt:
                     "ebMaxKwh": eB_max,
                     "numChargers": numChargers,
                     "chargerPower": pCB_ub,
-                    "chargerEff": eff_CB,
                     "routes": str(routes),
                     "gridMaxPower": gridKWH,
                     "obj_val": obj_val,
@@ -317,6 +330,42 @@ class ChargeOpt:
                 },
                 ignore_index=True,
             )
+
+            # print charging[b, d]
+            # print(chargerUse[b, t])
+             # two-dimensional
+            def genCharging(varName):
+                df = pd.DataFrame(columns=['day', 'bus', 'value'])
+                data = []
+
+                for d in range(D):
+                    for b in range(B):
+                        value = variable_dict[f'{varName}[{b},{d}]']
+                        data.append({'day': d, 'bus': b, f'{varName}': value})
+
+                df = pd.DataFrame(data)
+                df = df.set_index(['bus', 'day'])
+
+            # chargeUse = genDF('chargerUse')
+            # chargeUse = chargeUse.sort_values(by=['bus', 'time'])
+            # st.write(chargeUse)
+
+            # chargeDaily = genCharging('charging')
+            # st.write(chargeDaily)
+
+            # change = genDF('change')
+            # st.write(change)
+            
+            # sum of change for each day and bus
+            # a day is 96 time steps
+            # for d in range(D):
+            #     for b in range(B):
+            #         changeSum = change.iloc[b, d*96:(d+1)*96].sum()
+            #         st.write(changeSum)
+            # changeSum = change.groupby(['bus', 'time']).sum()
+            # st.write(changeSum)
+
+            
 
             # write the results to the results.csv file
             results_df.to_csv(results_file, index=False)
