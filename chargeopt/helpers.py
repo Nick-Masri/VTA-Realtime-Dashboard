@@ -10,7 +10,7 @@ def time_to_quarter(datetime_str):
     quarter_hour = math.ceil(total_minutes / 15)
     return quarter_hour
 
-def init_grid_pricing(numDays, startTime):
+def init_grid_pricing(numDays):
     # This function sets the price per kWh of grid electricity
     #       time increment: 15 minutes
 
@@ -18,25 +18,27 @@ def init_grid_pricing(numDays, startTime):
     #   Peak:       .59002 dollars per kwh     12:00 - 18:00
     #   Partial:    . 29319 dollars per kwh     08:30 - 12:00;   18:00 - 21:30
     #   Off Peak:   .22161 dollars per kwh     00:00 - 8:30;    21:30 - 24:00
-    startTime = startTime.strftime('%I:%M %p')
-    startTimeNum = time_to_quarter(startTime)
+    # startTime = startTime.strftime('%I:%M %p')
+    # startTimeNum = time_to_quarter(startTime)
+    # startTimeNum = 0
     # Create list of prices for single day
-    grid_pow_price = [0] * 96
+    grid_pow_init = [0] * 96
     for t in range(96):
-        minutes = 15 * (t + 1) + startTimeNum
+        # shift by start time
+        minutes = 15 * (t + 1)
         if (minutes > 12 * 60) and (minutes <= 18 * 60):
-            grid_pow_price[t] = 0.59002
+            grid_pow_init[t] = 0.59002
         elif (((minutes > 8.5 * 60) and (minutes <= 12 * 60)) or
               ((minutes > 18 * 60) and (minutes <= 21.5 * 60))):
-            grid_pow_price[t] = 0.29319
+            grid_pow_init[t] = 0.29319
         else:
-            grid_pow_price[t] = 0.22161
+            grid_pow_init[t] = 0.22161
 
     # Extend list to proper number of days
-    grid_pow_init = grid_pow_price
-    for _ in range(1, numDays):
+    grid_pow_price = []
+    for _ in range(numDays):
         grid_pow_price.extend(grid_pow_init)
-
+        
     return grid_pow_price
 
 
@@ -49,6 +51,7 @@ def init_routes(routeDF, eB_range, pCB_max):
     
     routeDF['block_startTime'] = routeDF['block_startTime'].apply(time_to_quarter)
     routeDF['block_endTime'] = routeDF['block_endTime'].apply(time_to_quarter)
+    print(routeDF[['block_startTime', 'block_endTime']])
     # make column int type
     routeDF['block_startTime'] = routeDF['block_startTime'].astype(int)
     routeDF['block_endTime'] = routeDF['block_endTime'].astype(int)

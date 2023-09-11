@@ -7,6 +7,8 @@ import data
 import pandas as pd
 from chargeopt.optimization import ChargeOpt
 import os
+import plotly.graph_objects as go
+
 import altair as alt
 import plotly.express as px
 
@@ -177,7 +179,7 @@ def opt_form():
         elif results == 'Optimal solution found':
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
             results_df.dropna(inplace=True)
-            #  results_df = results_df.append(
+            #  results_df  
             #     {
             #         "case_name": filename,
             #         "numBuses": B,
@@ -195,6 +197,7 @@ def opt_form():
             with st.expander("Results and Input Details"): 
                 st.dataframe(results_df, use_container_width=True)
             cost = results_df['obj_val']
+            cost = float(cost)
             st.metric("Cost", f"${cost:.2f}")
             # visualize in altair
      
@@ -244,14 +247,30 @@ def opt_form():
             #         y='powerCB:Q',
             #         color='bus:N'
             #     )
-            # )
-
             for bus in twodim_df['bus'].unique():
                 bus_df = twodim_df[twodim_df['bus'] == bus]
                 
-                fig = px.line(bus_df, x='time', y='powerCB', title=f'Bus {bus} Power CB Distribution', labels={'time': 'Time', 'powerCB': 'Power CB'})
+                # Initialize the figure
+                fig = go.Figure()
                 
+                # Add line plot to the figure
+                fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['powerCB'], mode='lines', 
+                                    name='Power CB', line=dict(color='blue')))
+                
+                # Add scatter plot to the figure with dot markers and without a color scale
+                # fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['chargerUse'], mode='markers', 
+                #                         marker=dict(color='red'), name='Charger Use'))
+                
+                # Update layout properties
+                fig.update_layout(title=f'Bus {bus} Power CB and Charger Use Distribution', 
+                                xaxis_title='Time', 
+                                yaxis_title='Values', 
+                                legend_title='Legend')
+
+                # Display the plot
                 st.plotly_chart(fig)
+
+            # add 
 
             st.write("### Energy Distribution in Bus Batteries")
             st.write(
