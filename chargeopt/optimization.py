@@ -96,7 +96,6 @@ class ChargeOpt:
         "LICENSEID":2410151,
         }
 
-
         env = gp.Env(params=params)
         env.start()
 
