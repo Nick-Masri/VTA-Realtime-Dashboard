@@ -1,5 +1,4 @@
 import gurobipy as gp
-from gurobipy import GRB
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -61,17 +60,11 @@ class ChargeOpt:
         # TODO: Fix time so there is a start time and end time
         T = D * 96
         optimized_time = [t for t in range(startTimeNum, T)]
-        print(T)
-                
-        #####################################
-        # Init MATLAB engine for setup
-        #####################################
-        # Start a MATLAB engine session
+        # print(T)
 
         [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub);
         if report != 'All Clear':
             return None
-            sys.exit(report)
 
         # for loop for tDep and tRet
         tDep = np.zeros((R, D), dtype=int)
@@ -96,9 +89,23 @@ class ChargeOpt:
         # Generate Grid Pricing Profile
         gridPowPrice = init_grid_pricing(D)
 
+        # pasted code from other source
+        params = {
+        "WLSACCESSID": 'e14fcd84-e402-4cfa-8f9d-f17ec727b1cd',
+        "WLSSECRET": 'a7a7c1a6-3862-4ad1-98d1-e76c0d503c7f',
+        "LICENSEID":2410151,
+        }
+
+
+        env = gp.Env(params=params)
+        env.start()
+
         # Create a new model
         m = gp.Model("Charge opt")
         m.setParam('solver', 'gurobi')
+
+        
+        # end pasted code
 
         #########################################
         # Defining Decision Vars
@@ -220,12 +227,10 @@ class ChargeOpt:
         # charge tracking to avoid <49kwh when power is available
         # tracker_b = 1 if eB > 49*.25 = 12.25
         M = 1000
-
-        m.addConstrs(((eB_max - eB[b, t]) + M*tracker[b, t] >= (pCB_ub*dt) ) for b in range(B) for t in optimized_time)
-        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]) for b in range(B) for t in optimized_time)
-        m.addConstrs((tracker[b, t] + tracker_b[b, t] == 1) for b in range(B) for t in optimized_time)
-        # m.addConstrs(powerCB[b, t] >= pCB_ub * tracker_b[b, t]*chargerUse[b, t] for b in range(B) for t in optimized_time)
-        # m.addConstrs(powerCB[b, t]*chargerUse[b, t] >= )
+        m.addConstrs(((eB_max - eB[b, t]) + M*tracker[b, t] + M*(1-chargerUse[b, t])>= (pCB_ub*dt)) for b in range(B) for t in optimized_time)
+        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]+ M*(1-chargerUse[b, t])) for b in range(B) for t in optimized_time)
+        m.addConstrs((tracker[b, t] + tracker_b[b, t] <= 1) for b in range(B) for t in optimized_time)
+        m.addConstrs(powerCB[b, t] >= pCB_ub * tracker_b[b, t] + eB_max * tracker[b, t] - eB[b, t] * tracker[b, t] for b in range(B) for t in optimized_time)
         # ###################################
         # Setting Objective and Solving
         ###################################
@@ -333,18 +338,18 @@ class ChargeOpt:
 
             # print charging[b, d]
             # print(chargerUse[b, t])
-             # two-dimensional
-            def genCharging(varName):
-                df = pd.DataFrame(columns=['day', 'bus', 'value'])
-                data = []
+            #  # two-dimensional
+            # def genCharging(varName):
+            #     df = pd.DataFrame(columns=['day', 'bus', 'value'])
+            #     data = []
 
-                for d in range(D):
-                    for b in range(B):
-                        value = variable_dict[f'{varName}[{b},{d}]']
-                        data.append({'day': d, 'bus': b, f'{varName}': value})
+            #     for d in range(D):
+            #         for b in range(B):
+            #             value = variable_dict[f'{varName}[{b},{d}]']
+            #             data.append({'day': d, 'bus': b, f'{varName}': value})
 
-                df = pd.DataFrame(data)
-                df = df.set_index(['bus', 'day'])
+            #     df = pd.DataFrame(data)
+            #     df = df.set_index(['bus', 'day'])
 
             # chargeUse = genDF('chargerUse')
             # chargeUse = chargeUse.sort_values(by=['bus', 'time'])
