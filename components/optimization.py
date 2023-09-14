@@ -44,7 +44,7 @@ def opt_form():
         with block_tab:
             st.write("# Blocks")
     
-
+            supabase = False
             # if using supabase
             if supabase:
                 blocks = supabase_blocks(active=False)
@@ -70,10 +70,11 @@ def opt_form():
 
 
                 # highlight as many blocks as there are buses  
+                blocks['Select'] = False
                 num_buses = len(edited_buses_df[edited_buses_df.Select == True])
                 for i in range(num_buses):
                     blocks.loc[i, 'Select'] = True
-
+                    
                 # if select is not true, make false
                 blocks['Select'] = blocks['Select'].fillna(False)
                 

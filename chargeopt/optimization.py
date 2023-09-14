@@ -26,9 +26,20 @@ class ChargeOpt:
         # example buse
         # [{coach}]
         B = len(self.buses)
+        try:
+            assert B > 0
+        except AssertionError:
+            st.write("No buses selected")
+            return None
 
         routes = self.routes
         R = len(routes)
+        try:
+            assert R > 0
+        except AssertionError:
+            st.write("No routes selected")
+            return None
+
 
         #####################################
         # Config 
@@ -252,7 +263,7 @@ class ChargeOpt:
         #####################################
         
         # Checking if it is feasible
-        if m.status != gp.GRB.INFEASIBLE:
+        if m.status == gp.GRB.OPTIMAL:
 
             # create a dictionary of variable names and values
             variable_dict = {var.VarName: var.x for var in m.getVars()}
@@ -268,9 +279,13 @@ class ChargeOpt:
                         data.append({'time': t, 'bus': b, f'{varName}': value})
 
                 df = pd.DataFrame(data)
-                df = df.set_index(['bus', 'time'])
+                if len(df) > 0:
+                    df = df.set_index(['bus', 'time'])
+                    return df
 
-                return df
+                else:
+                    return None
+
 
             powerCB_df = genDF('powerCB')
             chargerUse_df = genDF('chargerUse')
