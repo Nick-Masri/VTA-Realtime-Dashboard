@@ -40,7 +40,7 @@ def run_simulation():
             leave_hr = leave_hr -12
         leave_time = "%02d:%02d" % (leave_hr, leave_min) 
         leave_time = leave_time + leave_12
-        result += ('Bus %d leaving at time %\n' % (i+1, leave_time))
+        result += ('Bus %d leaving at time %s\n' % (i+1, leave_time))
 
         start_list.append(leave_time)
         #the duration of the drive will vary, lets call average of 120 minutes and std of 20 minutes
@@ -60,7 +60,7 @@ def run_simulation():
         ## i have a bug in here going from am to pm 
         freturn_time = "%02d:%02d" % (return_hr, return_min) 
         freturn_time = freturn_time + return_12
-        result+= ('Bus %d returning at time %\n' % (i+1, freturn_time))
+        result+= ('Bus %d returning at time %s\n' % (i+1, freturn_time))
         
         ret_list.append(freturn_time)
         bat = busList[i].charge
