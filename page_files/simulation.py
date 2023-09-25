@@ -18,6 +18,8 @@ class Bus:
 
 def run_simulation():
     busList=[]
+    for i in range(0,10):
+        busList.append(Bus(85, 55, "operator", 1, 0, 120, 120, 300, 15, 100))
     start_list = []
     ret_list = []
     eret_list =[]
