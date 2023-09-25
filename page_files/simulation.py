@@ -4,22 +4,33 @@ import pandas as pd
 import random
 
 class Bus:
-    def __init__(self, charge, route_len, driver, route, s_d_time, e_d_time, s_c_time, e_c_time, s_charge, e_charge):
+    def __init__(self, charge, r_dist):
         self.charge = charge
-        self.route_len = route_len
-        self.driver = driver
-        self.route = route
-        self.s_d_time = s_d_time
-        self.e_d_time = e_d_time
-        self.s_c_time = s_c_time
-        self.e_c_time = e_c_time
-        self.s_charge = s_charge
-        self.e_charge = e_charge
+        self.r_dist = r_dist
+
+busList = []
+i = 0
+mean = 2
+std = 0.005
 
 def run_simulation():
     busList=[]
-    for i in range(0,10):
-        busList.append(Bus(85, 55, "operator", 1, 0, 120, 120, 300, 15, 100))
+    while(i<11):
+        battery = 440
+        miles = random.randint(50, 150)
+        # select random value from the probability distribution
+        # needs some sort of division or percentage function, 
+        # otherwise, battery percentage ends up negative
+        energy_cons_val = random.normalvariate(mean, std)
+        #calculate the random amount of energy used 
+        #energy is in kW*hrs
+        #battery is 440
+        energy = miles * energy_cons_val
+        #gives percetage out of 440
+        battery = ((battery - energy)/440) *100
+        #print('Bus %d returning with %d percent battery' %(i , battery))
+        busList.append(Bus(battery,miles))
+        i=i+1
     start_list = []
     ret_list = []
     eret_list =[]
