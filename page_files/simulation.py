@@ -15,6 +15,7 @@ std = 0.005
 
 def run_simulation():
     busList=[]
+    i =0
     while(i<11):
         battery = 440
         miles = random.randint(50, 150)
@@ -40,7 +41,7 @@ def run_simulation():
     result =""
     #schedule for the buses starts at time 0, expected route duration is 2hrs (120 min)
     scheduled_start = 240
-    for i in range(0,10): 
+    for j in range(0,10): 
         #bus leaves at a cheduled time (every 120 minutes)
         leave_hr = scheduled_start/60
         leave_12 = "pm"
@@ -53,7 +54,7 @@ def run_simulation():
             leave_hr = leave_hr -12
         leave_time = "%02d:%02d" % (leave_hr, leave_min) 
         leave_time = leave_time + leave_12
-        result += ('Bus %d leaving at time %s\n' % (i+1, leave_time))
+        result += ('Bus %d leaving at time %s\n' % (j+1, leave_time))
 
         start_list.append(leave_time)
         #the duration of the drive will vary, lets call average of 120 minutes and std of 20 minutes
@@ -73,12 +74,12 @@ def run_simulation():
         ## i have a bug in here going from am to pm 
         freturn_time = "%02d:%02d" % (return_hr, return_min) 
         freturn_time = freturn_time + return_12
-        result+= ('Bus %d returning at time %s\n' % (i+1, freturn_time))
+        result+= ('Bus %d returning at time %s\n' % (j+1, freturn_time))
         
         ret_list.append(freturn_time)
-        bat = busList[i].charge
-        mil = busList[i].route_len
-        result+=('Bus %d returning with %d percent charge after %d miles\n'% (i+1, bat, mil))
+        bat = busList[j].charge
+        mil = busList[j].route_len
+        result+=('Bus %d returning with %d percent charge after %d miles\n'% (j+1, bat, mil))
         #print('Bus %d returning with %d percent charge after %d miles'% (i+1, bat, mil))
         #est ret time
         ereturn_time = scheduled_start +120
