@@ -9,7 +9,6 @@ class Bus:
         self.r_dist = r_dist
 
 busList = []
-i = 0
 mean = 2
 std = 0.005
 
