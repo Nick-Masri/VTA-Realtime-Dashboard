@@ -77,7 +77,7 @@ def run_simulation():
         
         ret_list.append(freturn_time)
         bat = busList[j].charge
-        mil = busList[j].route_len
+        mil = busList[j].r_dist
         result+=('Bus %d returning with %d percent charge after %d miles\n'% (j+1, bat, mil))
         #print('Bus %d returning with %d percent charge after %d miles'% (i+1, bat, mil))
         #est ret time
