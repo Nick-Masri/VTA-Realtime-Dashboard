@@ -53,7 +53,12 @@ def chargepoint_active_sessions():
             'stationID': station_id,
             'activeSessionsOnly': True
         }
-        data = client.service.getChargingSessionData(queryString)
+        try:
+            data = client.service.getChargingSessionData(queryString)
+        except Exception as e:
+            # st.write(e)
+            st.warning('Error: Chargepoint API Error: getChargingSessionData')
+            return None
         # code = data['responseCode']
         # text = data['responseText']
         # more = data['MoreFlag']
@@ -90,7 +95,12 @@ def chargepoint_past_sessions(start_date, end_date):
             'fromTimeStamp': start_date,
             'toTimeStamp': end_date,
         }
-        data = client.service.getChargingSessionData(queryString)
+        try:
+            data = client.service.getChargingSessionData(queryString)
+        except Exception as e:
+            # st.write(e)
+            st.warning('Error: Chargepoint API Error: getChargingSessionData')
+            return None
         # code = data['responseCode']
         # text = data['responseText']
         # more = data['MoreFlag']
@@ -109,7 +119,13 @@ def chargepoint_stations():
     usageSearchQuery = {
         'stationModel': 'CPE250C-500-CCS1-CHD',
     }
-    response = client.service.getStations(usageSearchQuery)
+    try:
+        response = client.service.getStations(usageSearchQuery)
+    except Exception as e:
+        # st.write(e)
+        st.warning('Error: Chargepoint API Error: getStations')
+        return None
+    
     # st.write(response['stationData'])
     data = serialize_object(response)
     # df = pd.json_normalize(data['stationData'])

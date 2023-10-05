@@ -16,14 +16,15 @@ def active_info():
 
 
 def get_charging_sessions():
-    df = chargepoint_active_sessions()
-    df["stationName"] = df["stationName"].str.replace(' / ', ' ', regex=False)
-    # Replace the desired format in the 'Station' column
-    df["stationName"] = df["stationName"].str.replace(r"VTA STATION #(\d+)", r"Station \1", regex=True)
-    df = df[df['Charging'] == True]
-    if not df.empty:
-        df = format_active_sessions(df)
-        df = df[['stationName', 'Idle', 'vehicle', 'totalSessionDuration', 'currentSOC']]
-        return df
+    df = chargepoint_active_sessions()    
+    if df is not None:
+        df["stationName"] = df["stationName"].str.replace(' / ', ' ', regex=False)
+        # Replace the desired format in the 'Station' column
+        df["stationName"] = df["stationName"].str.replace(r"VTA STATION #(\d+)", r"Station \1", regex=True)
+        df = df[df['Charging'] == True]
+        if len(df) > 0:
+            df = format_active_sessions(df)
+            df = df[['stationName', 'Idle', 'vehicle', 'totalSessionDuration', 'currentSOC']]
+            return df
     else:
         return None
