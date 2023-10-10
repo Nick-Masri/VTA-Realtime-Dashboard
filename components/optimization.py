@@ -119,11 +119,18 @@ def opt_form():
         with chargers:
             st.write("# Chargers ")
             chargers_df = chargepoint_stations()
-            chargers_df = chargers_df[['stationName', 'networkStatus']]
-            chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
-            # change station name from format of VTA / STATION #1 to Station 1
-            chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
-            chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
+            if chargers_df is not None:
+                chargers_df = chargers_df[['stationName', 'networkStatus']]
+                chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
+                # change station name from format of VTA / STATION #1 to Station 1
+                chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
+                chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
+            else:
+                fake_stations = {'stationName': ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5'],
+                'networkStatus': ['Reachable', 'Reachable', 'Reachable', 'Reachable', 'Reachable'],
+                'Select': [True, True, True, True, True]}
+                chargers_df = pd.DataFrame(fake_stations)
+                
             edited_chargers_df = st.data_editor(chargers_df, hide_index=True, use_container_width=True,
                                                 column_config={
                                                     "stationName": st.column_config.TextColumn(
