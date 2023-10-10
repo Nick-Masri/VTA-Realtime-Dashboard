@@ -2,4 +2,4 @@ import streamlit as st
 
 
 def show_form():
-    st.write("put more stuff here")
+    st.write("Insert and integrate time-to-charge algorithm")
