@@ -108,7 +108,7 @@ class ChargeOpt:
 
         # env = gp.Env(params=params)
 
-        env = gp.Env(params=params)
+        env = gp.Env()
 
         env.start()
 
