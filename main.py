@@ -6,6 +6,7 @@ from page_files.vehicles import show_vehicles
 from page_files.charging_time import show_form
 from page_files.simulation import show_simulation
 from page_files.chargers import show_chargers
+from page_files.energy_cons import show_energy_cons
 from components.optimization import opt_form
 from calls.error_email import send_email
 
@@ -18,7 +19,7 @@ from calls.error_email import send_email
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist, opt, charge, sim = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "🔌 Time to Charge", "🧪 Simulation"])
+    dash, veh, hist, opt, charge, enrg, sim = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "🔌 Time to Charge", "⚡Energy Consumption", "🧪 Simulation"])
 
     with dash:
         dashboard()
@@ -34,6 +35,9 @@ def main():
 
     with charge:
         show_form()
+    
+    with enrg():
+        show_energy_cons()
     
     with sim:
         show_simulation()
