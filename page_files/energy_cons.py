@@ -1,10 +1,6 @@
-import pandas as pd
+#import pandas as pd
 import streamlit as st
-import math
-import matplotlib.pyplot as plt
-import seaborn as sns
-import numpy as np
-import pickle
+#import pickle
 
 def show_energy_cons():
     st.write("Here we will load our model saved model")
