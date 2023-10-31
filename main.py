@@ -36,7 +36,7 @@ def main():
     with charge:
         show_form()
     
-    with enrg():
+    with enrg:
         show_energy_cons()
     
     with sim:
