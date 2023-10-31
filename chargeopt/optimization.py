@@ -100,22 +100,26 @@ class ChargeOpt:
         # Generate Grid Pricing Profile
         gridPowPrice = init_grid_pricing(D)
 
-        # pasted code from other source
-        params = {
-        "WLSACCESSID": 'e14fcd84-e402-4cfa-8f9d-f17ec727b1cd',
-        "WLSSECRET": 'a7a7c1a6-3862-4ad1-98d1-e76c0d503c7f',
-        "LICENSEID":2410151,
-        }
+        # params = {
+        # "WLSACCESSID": 'e14fcd84-e402-4cfa-8f9d-f17ec727b1cd',
+        # "WLSSECRET": 'a7a7c1a6-3862-4ad1-98d1-e76c0d503c7f',
+        # "LICENSEID":2410151,
+        # }
 
-        env = gp.Env(params=params)
+        # env = gp.Env(params=params)
+
+        env = gp.Env()
+
         env.start()
 
         # Create a new model
         m = gp.Model("Charge opt")
         m.setParam('solver', 'gurobi')
 
-        
-        # end pasted code
+        # MIP Gap
+        m.setParam('MIPGap', 0.03)
+
+
 
         #########################################
         # Defining Decision Vars
@@ -140,10 +144,15 @@ class ChargeOpt:
         #####################################
         # Constraints
         #####################################
+        M = 1000
+
 
         #####################################
         # Charging Constraints
         #####################################
+
+
+        # trackers and constraints to limit weird charging behavior
         m.addConstrs((change[b, t] == T1[b, t] + T2[b, t] for b in range(B) for t in range(T)), "change link")
 
         m.addConstrs((T1[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T1 init")
@@ -157,16 +166,41 @@ class ChargeOpt:
                     "change chargeruse link")
         
         m.addConstrs(sum(change[b, t] for t in range(T)) <= 2 for b in range(B))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 6 * charging[b, d] for b in range(B) for d in range(D))
+        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 4 * charging[b, d] for b in range(B) for d in range(D))
         m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
-
-        # add constraint for powerCB
-        m.addConstrs((powerCB[b, t] == (gridPowToB[b, t]) for t in range(T) for b in range(B)),
-            "charger power limit")
 
         # add constraints to connect charger use to charger power
         m.addConstrs(powerCB[b, t] <= pCB_ub * chargerUse[b, t] for b in range(B) for t in range(T))
-        m.addConstrs(powerCB[b, t] >= chargerUse[b, t] for b in range(B) for t in range(T))
+
+        # charge tracking to avoid <49kwh when power is available
+        #  49*.25 = 12.25
+        
+        # if eLeft < 12.25:
+        # tracker_b can be 0
+        # tracker must be 1
+        # energy given to bus (pCB*dt) must be greater than equal to eLeft (though only equal) when charging
+        m.addConstrs(powerCB[b, t]*dt + M*(1-chargerUse[b, t]) >= (eB_max - eB[b,t])*tracker[b, t] for b in range(B) for t in optimized_time)
+
+        # if eLeft = 12.25:
+        # tracker_b can be 0 or 1
+        # tracker can be 0 or 1 
+        # energy given to bus (pCB*dt) must be equal to eLeft when charging
+        # no need to add constraint
+
+        # if eLeft > 12.25:
+        # tracker can be 0
+        # tracker_b must be 1
+        # energy given to bus (pCB*dt) must be greater equal to pCB_ub*dt when charging
+        # m.addConstrs(powerCB[b, t]*dt >= (pCB_ub*dt)*tracker_b[b, t] for b in range(B) for t in optimized_time)
+        # equivalent form
+        m.addConstrs(powerCB[b, t] + M*(1-chargerUse[b, t]) >= pCB_ub*tracker_b[b, t] for b in range(B) for t in optimized_time)
+
+        # constraints to set up trackers
+        m.addConstrs(((eB_max - eB[b, t]) >= (pCB_ub*dt) - M*tracker[b, t]) for b in range(B) for t in optimized_time)
+        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]) for b in range(B) for t in optimized_time)
+        m.addConstrs((tracker[b, t] + tracker_b[b, t] == 1) for b in range(B) for t in range(T))
+
+        # limit charging to number of chargers
         m.addConstrs(sum(chargerUse[b, t] for b in range(B)) <= numChargers for t in range(T))
 
         #####################################
@@ -175,6 +209,9 @@ class ChargeOpt:
         # Grid Constraints
         m.addConstrs((gridPowToB.sum('*', t) <= gridPowAvail for t in range(T)), "grid power total")
 
+        m.addConstrs((powerCB[b, t] == (gridPowToB[b, t]) for t in range(T) for b in range(B)),
+            "charger power limit")
+        
         #####################################
         # Bus Battery operation
         #####################################
@@ -234,13 +271,6 @@ class ChargeOpt:
         # TODO: fix this so that the assignemnts use the heuristic
         # m.addConstrs(assignment[b, d, b] == 1 for b in range(B) for d in range(D))
 
-        # charge tracking to avoid <49kwh when power is available
-        # tracker_b = 1 if eB > 49*.25 = 12.25
-        M = 1000
-        m.addConstrs(((eB_max - eB[b, t]) + M*tracker[b, t] + M*(1-chargerUse[b, t])>= (pCB_ub*dt)) for b in range(B) for t in optimized_time)
-        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]+ M*(1-chargerUse[b, t])) for b in range(B) for t in optimized_time)
-        m.addConstrs((tracker[b, t] + tracker_b[b, t] <= 1) for b in range(B) for t in optimized_time)
-        m.addConstrs(powerCB[b, t] >= pCB_ub * tracker_b[b, t] + eB_max * tracker[b, t] - eB[b, t] * tracker[b, t] for b in range(B) for t in optimized_time)
         # ###################################
         # Setting Objective and Solving
         ###################################
@@ -383,8 +413,6 @@ class ChargeOpt:
             #         st.write(changeSum)
             # changeSum = change.groupby(['bus', 'time']).sum()
             # st.write(changeSum)
-
-            
 
             # write the results to the results.csv file
             results_df.to_csv(results_file, index=False)

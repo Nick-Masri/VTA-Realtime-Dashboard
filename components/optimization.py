@@ -119,11 +119,18 @@ def opt_form():
         with chargers:
             st.write("# Chargers ")
             chargers_df = chargepoint_stations()
-            chargers_df = chargers_df[['stationName', 'networkStatus']]
-            chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
-            # change station name from format of VTA / STATION #1 to Station 1
-            chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
-            chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
+            if chargers_df is not None:
+                chargers_df = chargers_df[['stationName', 'networkStatus']]
+                chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
+                # change station name from format of VTA / STATION #1 to Station 1
+                chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
+                chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
+            else:
+                fake_stations = {'stationName': ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5'],
+                'networkStatus': ['Reachable', 'Reachable', 'Reachable', 'Reachable', 'Reachable'],
+                'Select': [True, True, True, True, True]}
+                chargers_df = pd.DataFrame(fake_stations)
+                
             edited_chargers_df = st.data_editor(chargers_df, hide_index=True, use_container_width=True,
                                                 column_config={
                                                     "stationName": st.column_config.TextColumn(
@@ -242,45 +249,68 @@ def opt_form():
             twodim_df = pd.read_csv(f'{path}/{filename}.csv')
 
             st.write("### Power CB Distribution")
-            # st.write(
-            #     alt.Chart(twodim_df).mark_line().encode(
-            #         x='time:Q',
-            #         y='powerCB:Q',
-            #         color='bus:N'
-            #     )
+            cols = st.columns(3)
             for bus in twodim_df['bus'].unique():
-                bus_df = twodim_df[twodim_df['bus'] == bus]
-                
-                # Initialize the figure
-                fig = go.Figure()
-                
-                # Add line plot to the figure
-                fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['powerCB'], mode='lines', 
-                                    name='Power CB', line=dict(color='blue')))
-                
-                # Add scatter plot to the figure with dot markers and without a color scale
-                # fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['chargerUse'], mode='markers', 
-                #                         marker=dict(color='red'), name='Charger Use'))
-                
-                # Update layout properties
-                fig.update_layout(title=f'Bus {bus} Power CB and Charger Use Distribution', 
-                                xaxis_title='Time', 
-                                yaxis_title='Values', 
-                                legend_title='Legend')
+                col = cols[bus % 3]
+                with col:
+                    bus_df = twodim_df[twodim_df['bus'] == bus]
+                    
+                    # Initialize the figure
+                    fig = go.Figure()
+                    
+                    # Add line plot to the figure
+                    fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['powerCB'], mode='lines', fill='tozeroy',
+                                        name='Power CB', line=dict(color='blue')))
+                    
+                    # Add scatter plot to the figure with dot markers and without a color scale
+                    # fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['chargerUse'], mode='markers', 
+                    #                         marker=dict(color='red'), name='Charger Use'))
+                    
+                    # add a vertical dash line every 96 time steps
+                    for i in range(96, len(bus_df), 96):
+                        fig.add_shape(type="line",
+                                    x0=i, y0=0, x1=i, y1=bus_df['powerCB'].max(),
+                                    line=dict(color="RoyalBlue", width=1, dash="dashdot"))
 
-                # Display the plot
-                st.plotly_chart(fig)
+                    # Update layout properties
+                    fig.update_layout(title=f'Bus {bus} Power Recieved', 
+                                    xaxis_title='time', 
+                                    yaxis_title='powerCB', 
+                                    legend_title='Legend')
 
-            # add 
+                    # Display the plot
+                    st.plotly_chart(fig, use_container_width=True)
 
+            cols = st.columns(3)
             st.write("### Energy Distribution in Bus Batteries")
-            st.write(
-                alt.Chart(twodim_df).mark_line().encode(
-                    x='time:Q',
-                    y='eB:Q',
-                    color='bus:N'
-                )
-            )
+            for bus in twodim_df['bus'].unique():
+                col = cols[bus % 3]
+                with col:
+                    bus_df = twodim_df[twodim_df['bus'] == bus]
+
+                    # Initialize the figure
+                    fig = go.Figure()
+                    
+                    # Add line plot to the figure
+                    fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['eB'], mode='lines', fill='tozeroy',
+                                        name='Power CB', line=dict(color='red')))
+                    
+                    # add a vertical dash line every 96 time steps
+                    for i in range(96, len(bus_df), 96):
+                        fig.add_shape(type="line",
+                                    x0=i, y0=0, x1=i, y1=1,
+                                    yref="paper",
+                                    line=dict(color="RoyalBlue", width=1, dash="dashdot"))
+                        
+                    # Update layout properties
+                    fig.update_layout(title=f'Bus {bus} Energy', 
+                                    xaxis_title='time', 
+                                    yaxis_title='powerCB', 
+                                    legend_title='Legend')
+
+                    # Display the plot
+                    st.plotly_chart(fig, use_container_width=True)
+
 
 
         st.write(results)
