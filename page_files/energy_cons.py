@@ -6,7 +6,8 @@ def show_energy_cons():
     st.write("Here we will load our model saved model")
     st.write("Then we will add buttons for user input")
 
-    voption = [f'750{x}' for x in range(1, 6)] + [f'950{x}' for x in range(1, 6)]
+    voption = [2600, 7505, 7504, 7501, 2601, 2610, 2604, 2608, 2607, 2603, 2602,
+       2606, 2605, 7503, 7502, 2609, 2612, 2611, 7506, 7507]
 
     v = st.selectbox('Select a vehicle', voption)
 
