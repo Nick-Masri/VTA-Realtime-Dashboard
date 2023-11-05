@@ -28,4 +28,4 @@ def predict_consumption(block, coach, miles_travelled):
     result = model.predict(inputs)[0]
     return round(result,1)
 
-print(predict_consumption(7773, 7505, 100))
+#print(predict_consumption(7773, 7505, 100))
