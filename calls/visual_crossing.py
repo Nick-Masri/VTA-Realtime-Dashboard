@@ -10,8 +10,11 @@ def get_todays_weather():
     if response.status_code == 200:
         response_json = response.json()
 
-        desired_attribute = response_json['days'][0]
+        weather = response_json['days'][0]
     else:
         raise Exception("Error retriving weather data")
     
-    return desired_attribute
+    return weather
+
+variable = get_todays_weather()
+print(variable['feelslikemin']*2)
