@@ -13,10 +13,10 @@ def show_energy_cons():
 
     block_option = [7770,7774,7773,7772,7771,7776,7775,7777,9883,9882,9983, 9982,9984,9986,9985,9987,7777071,7777072]
     block = st.selectbox('Select block', block_option)
-    st.text_input('Number of miles left to be travelled:')
-    st.text_input('Current temperature:')
-    st.text_input('Cloud cover:')
-    st.text_input('Current SOC:')
+    #st.text_input('Number of miles left to be travelled:')
+    #st.text_input('Current temperature:')
+    #st.text_input('Cloud cover:')
+    #st.text_input('Current SOC:')
 
     st.button('Generate estimated battery remaining')
 
