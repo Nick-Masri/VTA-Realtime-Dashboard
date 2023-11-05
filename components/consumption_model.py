@@ -24,8 +24,8 @@ def predict_consumption(block, coach, miles_travelled):
     weather_data = get_todays_weather()
     # today = date.today()
     inputs = np.array([[block, weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], 4, 11, 2023, 1]])
-    model = pickle.load(open('./ML_Models/energy_consumption_model.sav', 'rb'))
+    model = pickle.load(open('../ML_models/energy_consumption_model.sav', 'rb'))
     result = model.predict(inputs)[0]
     return round(result,1)
 
-print(predict_consumption(7773, 7505, 84))
+print(predict_consumption(7773, 7505, 100))
