@@ -2,7 +2,7 @@
 streamlit~=1.25.0
 supabase~=1.0.3
 numpy
-pandas
+pandas== 2.0.3
 # ploting (vehicles soc graph)
 plotly
 # shapely
@@ -23,5 +23,5 @@ pyyaml
 gurobipy
 #consumption model
 pickle
-pgbm
+pgbm== 2.2.0
 scikit-learn
