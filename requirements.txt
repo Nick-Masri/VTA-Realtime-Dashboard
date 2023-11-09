@@ -21,5 +21,7 @@ pytz
 matlab
 pyyaml
 gurobipy
-#model loading
+#consumption model
 pickle
+pgbm
+scikit-learn
