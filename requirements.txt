@@ -22,6 +22,6 @@ matlab
 pyyaml
 gurobipy
 #consumption model
-pickle
+pickleshare @ file:///tmp/build/80754af9/pickleshare_1606932040724/work
 pgbm== 2.2.0
 scikit-learn
