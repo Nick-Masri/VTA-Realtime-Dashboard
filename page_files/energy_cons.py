@@ -22,7 +22,7 @@ def show_energy_cons():
     energy_used=predict_consumption(block, v, miles)
     st.button('Generate estimated battery remaining')
    #  st.write('The bus will use ' + energy_used + 'percent battery')
-    st.write('The path is ' + energy_used)
+    st.write('The path is ' + str(energy_used))
     st.success('Bus will be able to travel route without needing to recharge')
 
     
