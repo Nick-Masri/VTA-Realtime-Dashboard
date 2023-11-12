@@ -22,6 +22,6 @@ matlab
 pyyaml
 gurobipy
 #consumption model
-picklemixin
-pgbm== 2.2.0
+pickle-mixin
+pgbm
 scikit-learn
