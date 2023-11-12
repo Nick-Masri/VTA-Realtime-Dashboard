@@ -29,9 +29,9 @@ def get_todays_weather():
 def predict_consumption(block, coach, miles_travelled):
     weather_data = get_todays_weather()
     # today = date.today()
-    # inputs = np.array([[block, weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], 4, 11, 2023, 1]]).astype('uint')
+    inputs = np.array([[block, weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], 4, 11, 2023, 1]]).astype('uint')
     # inputs = np.array([[block, 67.5, coach, 43.2, miles_travelled, 14.5, 330.5, 8.9, 12.7, 34.1,0.0, 4, 11, 2023, 1]])
-    inputs = np.array([[7773, 28.9, 7505, 65.3, 84, 12.2, 322, 14.9, 24, 34.5, 0.0, 23, 8, 2019,1]])
+    #inputs = np.array([[7773, 28.9, 7505, 65.3, 84, 12.2, 322, 14.9, 24, 34.5, 0.0, 23, 8, 2019,1]])
     pkl_path = './ML_models/energy_consumption_model.sav'
     # return pkl_path
     # pkl_path = 'ML_models/energy_consumption_model.sav'
@@ -41,8 +41,8 @@ def predict_consumption(block, coach, miles_travelled):
     return round(result,1)
 
 def show_energy_cons():
-    st.write("Here we will load our model saved model")
-    st.write("Then we will add buttons for user input")
+    #st.write("Here we will load our model saved model")
+    #st.write("Then we will add buttons for user input")
     
     voption = [2600, 7505, 7504, 7501, 2601, 2610, 2604, 2608, 2607, 2603, 2602,
        2606, 2605, 7503, 7502, 2609, 2612, 2611, 7506, 7507]
@@ -58,6 +58,6 @@ def show_energy_cons():
     energy_used=predict_consumption(block, v, miles)
     #st.button('Generate estimated battery remaining')
    #  st.write('The bus will use ' + energy_used + 'percent battery')
-    st.write('The amount of energy the bus uses in the route is ' + str(energy_used))
+    st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
     #st.success('Bus will be able to travel route without needing to recharge')
 
