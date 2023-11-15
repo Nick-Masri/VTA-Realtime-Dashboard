@@ -19,8 +19,9 @@ from calls.error_email import send_email
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist, opt, enrg, sim = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "⚡Energy Consumption", "🧪 Simulation"])
+    dash, veh, hist, opt, enrg = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "⚡Energy Consumption"])
     #"🔌 Time to Charge"
+    #"🧪 Simulation"
     with dash:
         dashboard()
 
@@ -39,8 +40,8 @@ def main():
     with enrg:
         show_energy_cons()
     
-    with sim:
-        show_simulation()
+    #with sim:
+        #show_simulation()
 
 
 
