@@ -146,8 +146,8 @@ def opt_form():
             
         with options:
             # st.info("Route Assignment Options Coming Soon")
-            run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
-
+            # run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
+            st.info("Optimization Options Coming Soon")
             # if run_type == 'Provide Assignments':
             #     st.dataframe(pd.DataFrame({'bus': [1, 2, 3, 4, 5], 'day': [1, 1, 1, 1, 1], 'route': [np.nan, np.nan, np.nan, np.nan, np.nan]}))
             #     st.info("Not legit for now, need to add dataframe editor")
