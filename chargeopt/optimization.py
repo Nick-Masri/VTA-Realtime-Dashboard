@@ -359,24 +359,23 @@ class ChargeOpt:
             # get current date in month/day/year format
             current_date = datetime.now().strftime("%m/%d/%Y")
 
-            # append the results to the DataFrame
-            results_df = results_df.append(
-                {
-                    "case_name": filename,
-                    "numBuses": B,
-                    "ebMaxKwh": eB_max,
-                    "numChargers": numChargers,
-                    "chargerPower": pCB_ub,
-                    "routes": str(routes),
-                    "gridMaxPower": gridKWH,
-                    "obj_val": obj_val,
-                    "sol_time": sol_time,
-                    "date": current_date,
-                    # "type": config['runType']
-                },
-                ignore_index=True,
-            )
+            # Convert the dictionary to a DataFrame
+            new_row = pd.DataFrame([{
+                "case_name": filename,
+                "numBuses": B,
+                "ebMaxKwh": eB_max,
+                "numChargers": numChargers,
+                "chargerPower": pCB_ub,
+                "routes": str(routes),
+                "gridMaxPower": gridKWH,
+                "obj_val": obj_val,
+                "sol_time": sol_time,
+                "date": current_date,
+                # "type": config['runType']
+            }])
 
+            # Concatenate the new row with the existing DataFrame
+            results_df = pd.concat([results_df, new_row], ignore_index=True)
             # print charging[b, d]
             # print(chargerUse[b, t])
             #  # two-dimensional
