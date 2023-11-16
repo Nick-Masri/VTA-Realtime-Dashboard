@@ -227,23 +227,17 @@ def opt_form():
             # visualize assignments:
             # 'bus', 'day', 'route'
             # here is where it is saved
-            #             assignment_df.to_csv(f'{path}/outputs/assignments_{filename}.csv')
+            #             assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
 
 
             # # visualize twodim df
             # # bus,time,powerCB,gridPowToB,eB
             # here is where it is saved
-            # path = os.path.join(os.getcwd(), "chargeopt")
-            # twodim_df.to_csv(f'{path}/outputs/{filename}.csv')
-               # visualize in altair
+            # path = os.path.join(os.getcwd(), "chargeopt", "outputs")
+            # twodim_df.to_csv(f'{path}/{filename}.csv')
+            # visualize in altair
             # Getting the path to the csv files
             path = os.path.join(os.getcwd(), "chargeopt", "outputs")
-            print(path)
-            print(path.listdir())
-            # # Check if the directory exists
-            # if not os.path.exists(path):
-            #     # If not, create it
-            #     os.makedirs(path)
 
             filename = results_df["case_name"]
 

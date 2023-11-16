@@ -316,10 +316,17 @@ class ChargeOpt:
 
             dfs = [powerCB_df,  eB_df, chargerUse_df]
             twodim_df = pd.concat(dfs, axis=1, join='inner')
-            path = os.path.join(os.getcwd(), "chargeopt")
+            path = os.path.join(os.getcwd(), "chargeopt", "outputs")
+
+            print(path)
+            print(path.listdir())
+            # Check if the directory exists
+            if not os.path.exists(path):
+                # If not, create it
+                os.makedirs(path)
 
             # export to csv
-            twodim_df.to_csv(f'{path}/outputs/{filename}.csv')
+            twodim_df.to_csv(f'{path}/{filename}.csv')
 
             ## Gen assignments
             data = []
@@ -332,13 +339,13 @@ class ChargeOpt:
 
             assignment_df = pd.DataFrame(data)
             assignment_df = assignment_df.set_index(['bus', 'day', 'route'])
-            assignment_df.to_csv(f'{path}/outputs/assignments_{filename}.csv')
+            assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
 
             # create the results DataFrame
             results_df = pd.DataFrame(columns=["case_name", "numBuses", "ebMaxKwh", "numChargers", "chargerPower", "chargerEff",
                                             "routes", "gridMaxPower", "obj_val", "sol_time", "date",
                                             "type"])
-            results_file = f'{path}/outputs/results.csv'
+            results_file = f'{path}/results.csv'
 
             # try to read in the current results file (if it exists)
             try:
