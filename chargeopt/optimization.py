@@ -318,8 +318,6 @@ class ChargeOpt:
             twodim_df = pd.concat(dfs, axis=1, join='inner')
             path = os.path.join(os.getcwd(), "chargeopt", "outputs")
 
-            print(path)
-            print(path.listdir())
             # Check if the directory exists
             if not os.path.exists(path):
                 # If not, create it
