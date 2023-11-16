@@ -52,14 +52,14 @@ def show_energy_cons():
 
     v = st.selectbox('Select a vehicle', voption)
 
-    block_option = [7770,7774,7773,7772,7771,7776,7775,7777,9883,9882,9983, 9982,9984,9986,9985,9987,7777071,7777072]
+    block_option = [7770,7774,7773,7772,7771,7776,7775,7777,9883,9882,9983, 9982,9984,9986,9985,9987]
     block = st.selectbox('Select block', block_option)
     miles = st.text_input('Number of miles left to be travelled:')
     #st.text_input('Current temperature:')
     #st.text_input('Cloud cover:')
     #st.text_input('Current SOC:')
     energy_used=predict_consumption(block, v, miles)
-    st.button('Generate estimated battery remaining')
+    st.button('Generate estimated energy used')
     if energy_used is not None and energy_used != -1:
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
     else:
