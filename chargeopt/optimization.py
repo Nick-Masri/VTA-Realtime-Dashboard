@@ -101,9 +101,9 @@ class ChargeOpt:
         gridPowPrice = init_grid_pricing(D)
 
         params = {
-        "WLSACCESSID": 'e14fcd84-e402-4cfa-8f9d-f17ec727b1cd',
-        "WLSSECRET": 'a7a7c1a6-3862-4ad1-98d1-e76c0d503c7f',
-        "LICENSEID":2410151,
+        "WLSACCESSID": st.secrets['GUROBI_ACCESSID'],
+        "WLSSECRET": st.secrets['GUROBI_SECRET'],
+        "LICENSEID": st.secrets['GUROBI_LICENSE'],
         }
 
         env = gp.Env(params=params)
