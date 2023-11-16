@@ -55,7 +55,7 @@ def energy_predictions():
     ebec_final = ebec_input[["start_per", "month"]]
     ebec_final["start_per"] = ebec_final["start_per"].astype(float)
     model_new = PGBM()
-    model_new.load("ML_Models/model2.pt")
+    model_new.load("ML_models/model2.pt")
 
     # Point and probabilistic predictions
     yhat_point = model_new.predict(ebec_final.values)
