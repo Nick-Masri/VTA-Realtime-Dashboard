@@ -100,20 +100,20 @@ class ChargeOpt:
         # Generate Grid Pricing Profile
         gridPowPrice = init_grid_pricing(D)
 
-        # params = {
-        # "WLSACCESSID": 'e14fcd84-e402-4cfa-8f9d-f17ec727b1cd',
-        # "WLSSECRET": 'a7a7c1a6-3862-4ad1-98d1-e76c0d503c7f',
-        # "LICENSEID":2410151,
-        # }
+        params = {
+        "WLSACCESSID": st.secrets['GUROBI_ACCESSID'],
+        "WLSSECRET": st.secrets['GUROBI_SECRET'],
+        "LICENSEID": st.secrets['GUROBI_LICENSE'],
+        }
 
-        # env = gp.Env(params=params)
+        env = gp.Env(params=params)
 
-        env = gp.Env()
+        # env = gp.Env()
 
         env.start()
 
         # Create a new model
-        m = gp.Model("Charge opt")
+        m = gp.Model("Charge opt", env=env)
         m.setParam('solver', 'gurobi')
 
         # MIP Gap
@@ -152,7 +152,7 @@ class ChargeOpt:
         #####################################
 
 
-        # trackers and constraints to limit weird charging behavior
+        # # trackers and constraints to limit weird charging behavior
         m.addConstrs((change[b, t] == T1[b, t] + T2[b, t] for b in range(B) for t in range(T)), "change link")
 
         m.addConstrs((T1[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T1 init")
@@ -171,21 +171,14 @@ class ChargeOpt:
 
         # add constraints to connect charger use to charger power
         m.addConstrs(powerCB[b, t] <= pCB_ub * chargerUse[b, t] for b in range(B) for t in range(T))
-
-        # charge tracking to avoid <49kwh when power is available
         #  49*.25 = 12.25
-        
         # if eLeft < 12.25:
         # tracker_b can be 0
         # tracker must be 1
         # energy given to bus (pCB*dt) must be greater than equal to eLeft (though only equal) when charging
         m.addConstrs(powerCB[b, t]*dt + M*(1-chargerUse[b, t]) >= (eB_max - eB[b,t])*tracker[b, t] for b in range(B) for t in optimized_time)
 
-        # if eLeft = 12.25:
-        # tracker_b can be 0 or 1
-        # tracker can be 0 or 1 
-        # energy given to bus (pCB*dt) must be equal to eLeft when charging
-        # no need to add constraint
+        # if eLeft = 12.25 both can be 0 or 1, no need to have constraint
 
         # if eLeft > 12.25:
         # tracker can be 0
@@ -247,8 +240,7 @@ class ChargeOpt:
             soc = float(soc) / 100
             m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
             m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
-
-        m.addConstrs(eB[b, T - 1] >= eB_max * soc for b in range(B))
+            m.addConstr(eB[b, T - 1] >= eB_max * soc)
 
         #####################################
         # Route Coverage Constraints
@@ -324,10 +316,15 @@ class ChargeOpt:
 
             dfs = [powerCB_df,  eB_df, chargerUse_df]
             twodim_df = pd.concat(dfs, axis=1, join='inner')
-            path = os.path.join(os.getcwd(), "chargeopt")
+            path = os.path.join(os.getcwd(), "chargeopt", "outputs")
+
+            # Check if the directory exists
+            if not os.path.exists(path):
+                # If not, create it
+                os.makedirs(path)
 
             # export to csv
-            twodim_df.to_csv(f'{path}/outputs/{filename}.csv')
+            twodim_df.to_csv(f'{path}/{filename}.csv')
 
             ## Gen assignments
             data = []
@@ -340,13 +337,13 @@ class ChargeOpt:
 
             assignment_df = pd.DataFrame(data)
             assignment_df = assignment_df.set_index(['bus', 'day', 'route'])
-            assignment_df.to_csv(f'{path}/outputs/assignments_{filename}.csv')
+            assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
 
             # create the results DataFrame
             results_df = pd.DataFrame(columns=["case_name", "numBuses", "ebMaxKwh", "numChargers", "chargerPower", "chargerEff",
                                             "routes", "gridMaxPower", "obj_val", "sol_time", "date",
                                             "type"])
-            results_file = f'{path}/outputs/results.csv'
+            results_file = f'{path}/results.csv'
 
             # try to read in the current results file (if it exists)
             try:
@@ -362,24 +359,23 @@ class ChargeOpt:
             # get current date in month/day/year format
             current_date = datetime.now().strftime("%m/%d/%Y")
 
-            # append the results to the DataFrame
-            results_df = results_df.append(
-                {
-                    "case_name": filename,
-                    "numBuses": B,
-                    "ebMaxKwh": eB_max,
-                    "numChargers": numChargers,
-                    "chargerPower": pCB_ub,
-                    "routes": str(routes),
-                    "gridMaxPower": gridKWH,
-                    "obj_val": obj_val,
-                    "sol_time": sol_time,
-                    "date": current_date,
-                    # "type": config['runType']
-                },
-                ignore_index=True,
-            )
+            # Convert the dictionary to a DataFrame
+            new_row = pd.DataFrame([{
+                "case_name": filename,
+                "numBuses": B,
+                "ebMaxKwh": eB_max,
+                "numChargers": numChargers,
+                "chargerPower": pCB_ub,
+                "routes": str(routes),
+                "gridMaxPower": gridKWH,
+                "obj_val": obj_val,
+                "sol_time": sol_time,
+                "date": current_date,
+                # "type": config['runType']
+            }])
 
+            # Concatenate the new row with the existing DataFrame
+            results_df = pd.concat([results_df, new_row], ignore_index=True)
             # print charging[b, d]
             # print(chargerUse[b, t])
             #  # two-dimensional
@@ -424,4 +420,4 @@ class ChargeOpt:
         else:
             status = "Model Error"
 
-        return status 
+        return status, startTimeNum

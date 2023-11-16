@@ -221,14 +221,6 @@ def show_and_format_block_history(blocks, df, key):
                         use_container_width=True,
                         )
             
-            if key == "all":
-                # Export the data to CSV and Excel formats
-                csv_data = blocks.to_csv(index=False, encoding='utf-8')
-
-                # Provide download buttons for both CSV and Excel
-                st.download_button("Download Data as CSV", csv_data, "block_history.csv")
-
-
 def recent_metrics(blocks, days, caption):
 
     avg_kwh_per_mile = round(blocks['kWh per Mile'].mean(), 2)
