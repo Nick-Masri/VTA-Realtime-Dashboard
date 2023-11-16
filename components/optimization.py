@@ -239,7 +239,7 @@ def opt_form():
             # Getting the path to the csv files
             path = os.path.join(os.getcwd(), "chargeopt", "outputs")
             print(path)
-            pritn(path.listdir())
+            print(path.listdir())
             # # Check if the directory exists
             # if not os.path.exists(path):
             #     # If not, create it
