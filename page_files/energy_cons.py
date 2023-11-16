@@ -62,7 +62,7 @@ def show_energy_cons():
     st.button('Generate estimated energy used')
     if energy_used is not None and energy_used != -1 and startSOC is not None:
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
-        batteryLeft =float(startSOC)-float(energy_used)
+        batteryLeft =format(float(startSOC)-float(energy_used), ".2f")
         st.write('The amount of energy the bus will return with is ' + str(batteryLeft) + '%')
     else:
         st.warning('Please enter the number of miles.')
