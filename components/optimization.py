@@ -238,11 +238,13 @@ def opt_form():
                # visualize in altair
             # Getting the path to the csv files
             path = os.path.join(os.getcwd(), "chargeopt", "outputs")
-            
-            # Check if the directory exists
-            if not os.path.exists(path):
-                # If not, create it
-                os.makedirs(path)
+            print(path)
+            pritn(path.listdir())
+            # # Check if the directory exists
+            # if not os.path.exists(path):
+            #     # If not, create it
+            #     os.makedirs(path)
+
             filename = results_df["case_name"]
 
             # visualize assignments: 'bus', 'day', 'route'
