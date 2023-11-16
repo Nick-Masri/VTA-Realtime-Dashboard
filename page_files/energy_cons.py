@@ -61,7 +61,7 @@ def show_energy_cons():
     energy_used=predict_consumption(block, v, miles)
     batteryLeft =startSOC-energy_used 
     st.button('Generate estimated energy used')
-    if energy_used is not None and energy_used != -1:
+    if energy_used is not None and energy_used != -1 and startSOC is not None:
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
         batteryLeft =startSOC-energy_used
         st.write('The amount of energy the bus will return with is ' + str(batteryLeft) + '%')
