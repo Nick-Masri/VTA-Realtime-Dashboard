@@ -20,8 +20,7 @@ def main():
 
     st.title("VTA Electric Bus Data Portal")
     dash, veh, hist, opt, enrg = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "⚡Energy Consumption"])
-    #"🔌 Time to Charge"
-    #"🧪 Simulation"
+
     with dash:
         dashboard()
 
@@ -30,6 +29,9 @@ def main():
 
     with hist:
         show_history()
+
+    # with pred:
+    #     energy_predictions()
 
     with opt:
         opt_form()

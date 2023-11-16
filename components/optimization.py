@@ -10,6 +10,7 @@ import os
 import plotly.graph_objects as go
 
 import altair as alt
+import numpy as np
 import plotly.express as px
 
 def opt_form():
@@ -144,13 +145,22 @@ def opt_form():
                                                 column_order=['Select', 'stationName', 'networkStatus'])
             
         with options:
-            st.info("Route Assignment Options Coming Soon")
-            run_type = st.radio("Route Assignment", options=['Provide Assignments', 'Heuristic', 'Optimal'], disabled=True)
+            # st.info("Route Assignment Options Coming Soon")
+            run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
 
+            # if run_type == 'Provide Assignments':
+            #     st.dataframe(pd.DataFrame({'bus': [1, 2, 3, 4, 5], 'day': [1, 1, 1, 1, 1], 'route': [np.nan, np.nan, np.nan, np.nan, np.nan]}))
+            #     st.info("Not legit for now, need to add dataframe editor")
+            # elif run_type == 'Heuristic':
+            #     st.info("Heuristic Coming Soon")
+                
+                
             # display current config options from chargeopt/config.yml
             submit = st.form_submit_button("Submit")
 
     if submit:
+        st.toast("Solving...")
+
         selected_buses = edited_buses_df[edited_buses_df.Select == True]
         selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
         selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
@@ -163,11 +173,11 @@ def opt_form():
         selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
         selected_chargers = selected_chargers[['stationName']]
 
-      
-
         opt = ChargeOpt(selected_buses, selected_blocks, selected_chargers)
 
-        results = opt.solve()
+        results, startTimeNum = opt.solve()
+
+        st.toast("Complete")
 
         with st.expander("Input Data"):
             col1, col2, col3 = st.columns(3)
@@ -182,9 +192,14 @@ def opt_form():
             col3.write("Chargers:")
             col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
+
         if results is None:
+            st.toast("Infeasible Model")
             st.error("Report Error")
         elif results == 'Optimal solution found':
+            st.toast(results)
+            # st.write(results)
+
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
             results_df.dropna(inplace=True)
             #  results_df  
@@ -247,6 +262,7 @@ def opt_form():
 
             # visualize twodim df: 'bus', 'time', 'powerCB', 'gridPowToB', 'eB'
             twodim_df = pd.read_csv(f'{path}/{filename}.csv')
+            twodim_df = twodim_df.iloc[startTimeNum:]
 
             st.write("### Power CB Distribution")
             cols = st.columns(3)
@@ -261,11 +277,7 @@ def opt_form():
                     # Add line plot to the figure
                     fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['powerCB'], mode='lines', fill='tozeroy',
                                         name='Power CB', line=dict(color='blue')))
-                    
-                    # Add scatter plot to the figure with dot markers and without a color scale
-                    # fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['chargerUse'], mode='markers', 
-                    #                         marker=dict(color='red'), name='Charger Use'))
-                    
+
                     # add a vertical dash line every 96 time steps
                     for i in range(96, len(bus_df), 96):
                         fig.add_shape(type="line",
@@ -281,8 +293,8 @@ def opt_form():
                     # Display the plot
                     st.plotly_chart(fig, use_container_width=True)
 
-            cols = st.columns(3)
             st.write("### Energy Distribution in Bus Batteries")
+            cols = st.columns(3)
             for bus in twodim_df['bus'].unique():
                 col = cols[bus % 3]
                 with col:
@@ -290,12 +302,19 @@ def opt_form():
 
                     # Initialize the figure
                     fig = go.Figure()
-                    
+                                
                     # Add line plot to the figure
                     fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['eB'], mode='lines', fill='tozeroy',
-                                        name='Power CB', line=dict(color='red')))
+                                        name='Power CB', line=dict(color='red'), showlegend=False))
                     
-                    # add a vertical dash line every 96 time steps
+                    # Get times when charging changes
+                    charging_starts = bus_df[bus_df['powerCB'] > 0]
+                    
+                    # Add the fill for charging times
+                    fig.add_trace(go.Scatter(x=charging_starts['time'], y=440*np.ones(len(charging_starts)), mode='lines', fill='tozeroy',
+                                            name='Charging', line=dict(color='rgba(230, 230, 0, 1)'), showlegend=False))  # rgba color for semi-transparent dark yellow
+
+                    # Add a vertical dash line every 96 time steps
                     for i in range(96, len(bus_df), 96):
                         fig.add_shape(type="line",
                                     x0=i, y0=0, x1=i, y1=1,
@@ -305,14 +324,8 @@ def opt_form():
                     # Update layout properties
                     fig.update_layout(title=f'Bus {bus} Energy', 
                                     xaxis_title='time', 
-                                    yaxis_title='powerCB', 
-                                    legend_title='Legend')
+                                    yaxis_title='energy', 
+                                    showlegend=False)  # Turn off the legend
 
                     # Display the plot
                     st.plotly_chart(fig, use_container_width=True)
-
-
-
-        st.write(results)
-        st.toast("Solving...")
-        
