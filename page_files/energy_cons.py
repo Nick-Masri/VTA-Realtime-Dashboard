@@ -19,11 +19,12 @@ def show_energy_cons():
     #st.text_input('Current temperature:')
     #st.text_input('Cloud cover:')
     #st.text_input('Current SOC:')
-    energy_used = predict_consumption(block, v, miles)
+    energy_used, probability = predict_consumption(block, v, miles, float(startSOC))
     st.button('Generate estimated energy used')
     if energy_used is not None and energy_used != -1 and startSOC is not None:
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
         batteryLeft =format(float(startSOC)-float(energy_used), ".2f")
+        st.write('The probability the bus completes the route is ' + str(100*probability) + '%')
         if float(batteryLeft) > 5:
             st.write('The amount of energy the bus will return with is ' + str(batteryLeft) + '%')
         else:

@@ -24,4 +24,5 @@ gurobipy
 #consumption model
 pickle-mixin
 pgbm
+mapie
 scikit-learn
