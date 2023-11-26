@@ -15,6 +15,3 @@ def get_todays_weather():
         raise Exception("Error retriving weather data")
     
     return weather
-
-variable = get_todays_weather()
-print(variable['feelslikemin']*2)
