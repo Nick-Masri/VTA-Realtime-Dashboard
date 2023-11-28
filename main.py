@@ -19,7 +19,7 @@ from calls.error_email import send_email
 def main():
 
     st.title("VTA Electric Bus Data Portal")
-    dash, veh, hist, opt, enrg = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "🛠️ Optimization", "⚡Energy Consumption"])
+    dash, veh, hist, enrg = st.tabs(["📊 Dashboard", "🚍 Vehicles", "🕓 History", "⚡Energy Consumption"])
 
     with dash:
         dashboard()
@@ -33,8 +33,8 @@ def main():
     # with pred:
     #     energy_predictions()
 
-    with opt:
-        opt_form()
+    #with opt:
+        #opt_form()
 
     #with charge:
         #show_form()

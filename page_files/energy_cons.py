@@ -21,10 +21,6 @@ def show_energy_cons():
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
         batteryLeft =format(float(startSOC)-float(energy_used), ".2f")
         st.write('The probability the bus completes the route is ' + str(100*probability) + '%')
-        if float(batteryLeft) > 5:
-            st.write('The amount of energy the bus will return with is ' + str(batteryLeft) + '%')
-        else:
-            st.write('The bus will not be able to complete the route.')
     else:
         st.warning('Please enter the number of miles.')
 
