@@ -12,7 +12,7 @@ def predict_consumption(block, coach, miles_travelled, percent):
     weather_data = get_todays_weather()
     today = date.today()
     if miles_travelled != '':
-        inputs = np.array([[weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], today.month, today.day]])
+        inputs = np.array([[weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], today.month, today.day]]).astype(np.float32)
         pkl_path = './ML_models/mapie_energy_consumption_model.sav'
         model = pickle.load(open(pkl_path, 'rb'))
         a = 0.01
