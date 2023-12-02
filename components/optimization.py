@@ -13,7 +13,29 @@ import altair as alt
 import numpy as np
 import plotly.express as px
 
+def select_blocks(buses_df: pd.DataFrame):
+    st.session_state["opt_input"] = "blocks"
+    st.session_state["buses"] = buses_df
+
+
+def select_chargers(blocks_df: pd.DataFrame):
+    st.session_state["opt_input"] = "chargers"
+    st.session_state["blocks"] = blocks_df
+
+def add_chargers_to_session(chargers_df: pd.DataFrame):
+    st.session_state["chargers"] = chargers_df
+    st.session_state["opt_input"] = 'display'
+
 def opt_form():
+
+
+    submit = False
+    keys = ['opt_input', 'buses', 'blocks', 'chargers']
+    for key in keys:
+        if key not in st.session_state:
+            st.session_state[key] = None
+
+
 
     supabase = False
 
@@ -22,9 +44,8 @@ def opt_form():
     # Mileage Data
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
 
-    with st.form("opt_input"):
-        buses, block_tab, chargers, options = st.tabs(["Buses", "Blocks", "Chargers", "Options"])
-        with buses:
+    with st.form("Optimization Form"):
+        if st.session_state['opt_input'] == None:  
             st.write("# Buses")
             df = df.sort_values('transmission_hrs', ascending=True)
             df = df[['vehicle', 'soc', 'status', 'last_seen']]
@@ -33,18 +54,17 @@ def opt_form():
             column_config['last_seen'] = st.column_config.TextColumn("Time Offline", disabled=True)
             column_config['status'] = st.column_config.SelectboxColumn("Status", 
                                                                         options=['Idle', 'Charging',],
-                                                                       disabled=False)
-            # make str with percentage sign
-            # df['soc'] = df['soc'].astype(float) * 100
-            df['soc'] = df['soc'].astype(int)
-            df['soc'] = df['soc'].astype(str) + '%'
+                                                                        disabled=False)
+            df['soc'] = df['soc'].astype(int).astype(str) + '%'
             column_config['soc'] = st.column_config.TextColumn("State of Charge", disabled=False)
             edited_buses_df = st.data_editor(df, hide_index=True, column_config=column_config,
                                             use_container_width=True,
                                             column_order=['Select', 'vehicle', 'soc', 'status', 'last_seen'])
-        with block_tab:
+            to_blocks = st.form_submit_button("Next ", on_click=select_blocks(edited_buses_df))
+            # if to_blocks:
+            #     st.experimental_rerun()
+        elif st.session_state['opt_input'] == 'blocks':
             st.write("# Blocks")
-    
             supabase = False
             # if using supabase
             if supabase:
@@ -58,7 +78,7 @@ def opt_form():
                 blocks['block_id'] = blocks['block_id'].astype(str)
 
             else:
-
+                edited_buses_df = st.session_state['buses']
                 block_data = {
                 'block_id': ['7771', '7172', '6682', '6675', '6180', '7073', '7774', '7173/sx', '6686'],
                 # 'Mileage': [148, 119.9, 144.4, 144.4, 149.3, 113.3, 48.3, 29.2, 55.0]
@@ -117,7 +137,10 @@ def opt_form():
                             column_order=['Select', 'id', 'block_id', 'block_startTime', 'block_endTime', 'Mileage'],
                             num_rows="dynamic")
 
-        with chargers:
+            to_chargers = st.form_submit_button("Next", on_click=select_chargers(edited_blocks_df))
+            # if to_chargers:
+            #     st.experimental_rerun()
+        elif st.session_state['opt_input'] == 'chargers':
             st.write("# Chargers ")
             chargers_df = chargepoint_stations()
             if chargers_df is not None:
@@ -143,11 +166,27 @@ def opt_form():
                                                         disabled=True
                                                     )},
                                                 column_order=['Select', 'stationName', 'networkStatus'])
+
+            submit = st.form_submit_button("Submit", on_click=add_chargers_to_session(edited_chargers_df))
+
+        elif st.session_state['opt_input'] == 'display':
+            # reset form and session state
+            submit = True
+            reset = st.form_submit_button("Reset")
+            if reset:
+                st.session_state['opt_input'] = None
+                submit = False
+                st.experimental_rerun()
+                # st.session_state['buses'] = None
+                # st.session_state['blocks'] = None
+
+
+
             
-        with options:
-            # st.info("Route Assignment Options Coming Soon")
-            # run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
-            st.info("Optimization Options Coming Soon")
+        # with options:
+        #     # st.info("Route Assignment Options Coming Soon")
+        #     # run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
+        #     st.info("Optimization Options Coming Soon")
             # if run_type == 'Provide Assignments':
             #     st.dataframe(pd.DataFrame({'bus': [1, 2, 3, 4, 5], 'day': [1, 1, 1, 1, 1], 'route': [np.nan, np.nan, np.nan, np.nan, np.nan]}))
             #     st.info("Not legit for now, need to add dataframe editor")
@@ -156,10 +195,14 @@ def opt_form():
                 
                 
             # display current config options from chargeopt/config.yml
-            submit = st.form_submit_button("Submit")
 
     if submit:
         st.toast("Solving...")
+
+        # get df's from session state
+        edited_buses_df = st.session_state['buses']
+        edited_blocks_df = st.session_state['blocks']
+        edited_chargers_df = st.session_state['chargers']
 
         selected_buses = edited_buses_df[edited_buses_df.Select == True]
         selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
@@ -179,7 +222,8 @@ def opt_form():
 
         st.toast("Complete")
 
-        with st.expander("Input Data"):
+
+        with st.expander("Input Data", expanded=True):
             col1, col2, col3 = st.columns(3)
 
             col1.write("Buses:")
