@@ -114,7 +114,6 @@ class ChargeOpt:
 
         # Create a new model
         m = gp.Model("Charge opt", env=env)
-        m.setParam('solver', 'gurobi')
 
         # MIP Gap
         m.setParam('MIPGap', 0.03)
