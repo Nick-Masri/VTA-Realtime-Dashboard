@@ -29,11 +29,13 @@ def show_energy_cons():
 
     miles = st.text_input('Number of miles left to be travelled:')
     energy_used, probability = predict_consumption(block, v, miles, 0 if startSOC=='' else float(startSOC))
-    st.button('Generate estimated energy used')
-    if energy_used is not None and energy_used != -1 and startSOC is not None:
+    # st.button('Generate estimated energy used')
+    if energy_used is not None and energy_used != -1 and startSOC is not None and startSOC != '':
         st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')
         batteryLeft =format(float(startSOC)-float(energy_used), ".2f")
         st.write('The probability the bus completes the route is ' + str(100*probability) + '%')
-    else:
+    elif energy_used == -1 or energy_used is None:
         st.warning('Please enter the number of miles.')
+    elif startSOC == '' or startSOC is None:
+        st.warning('Please enter the current SOC.')
 
