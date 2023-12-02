@@ -31,8 +31,8 @@ def show_charger_history():
     end_date = st.date_input('End Date', value=pd.Timestamp.now(tz='US/Pacific'), format="MM/DD/YYYY")
 
     df = chargepoint_past_sessions(start_date, end_date)
-    if len(df) > 0:
-        st.write(df)
+    if len(df) > 0 :
+        # st.write(df)
 
         df = df.sort_values('startTime', ascending=False)
         # Change station name from VTA / STATION #1 to VTA STATION #1
@@ -59,48 +59,52 @@ def show_charger_history():
 
         df['stationName'] = df['stationName'].str.replace('VTA STATION #', 'Station ')
         # replace 0 minutes with none (not str)
-        df['timeIdle'] = df['timeIdle'].replace('0 minutes', np.nan)
-        st.dataframe(df, 
-                    hide_index=True, use_container_width=True,
-                    column_config={
-                        "stationName": st.column_config.TextColumn("Station Name"),
-                            "vehicle": st.column_config.TextColumn("Coach"),
-                        "startTime": st.column_config.DatetimeColumn("Start Time", 
-                                                                    format="MM/DD/YY h:mmA"),
-                            "endTime": st.column_config.DatetimeColumn("End Time",
-                                                                        format="MM/DD/YY h:mmA"),
-                            "energy": st.column_config.NumberColumn("Energy (kWh)"),
-                            "totalChargingDuration": st.column_config.TextColumn("Charging Duration"),
-                            "totalSessionDuration": st.column_config.TextColumn("Session Duration"),
-                            "timeIdle": st.column_config.TextColumn("Time Idle"),
-                            "startBatteryPercentage": st.column_config.ProgressColumn("Start SOC (%)",
-                                                                                    format='%d%%',
-                                                                                    min_value=0,max_value=100),
-                            "stopBatteryPercentage": st.column_config.ProgressColumn("End SOC (%)",
-                                                                                    format='%d%%',
-                                                                                    min_value=0,max_value=100),
-                            "endedBy": st.column_config.TextColumn("Ended By"),
-                    },
-                        column_order=[
-                            "vehicle",
-                            "stationName",
-                            "startBatteryPercentage",
-                            "stopBatteryPercentage",
-                            "totalChargingDuration",
-                            "totalSessionDuration",
-                            "timeIdle",
-                            "startTime",
-                            "endTime",
-                            # "energy",
-                            "endedBy",
-                        ])
+        # df['timeIdle'] = df['timeIdle'].replace('0 minutes', np.nan)
 
-        # make time_zone unaware
-        df_copy = df.copy()
-        df_copy['startTime'] = df_copy['startTime'].dt.tz_localize(None)
-        df_copy['endTime'] = df_copy['endTime'].dt.tz_localize(None)
-        df_copy['startTime'] = df_copy['startTime'].dt.strftime('%m/%d/%y %I:%M %p')
-        df_copy['endTime'] = df_copy['endTime'].dt.strftime('%m/%d/%y %I:%M %p')
-        csv = df_copy.to_csv(index=False).encode('utf-8')
+        if len(df) > 0:
+            st.dataframe(df, 
+                        hide_index=True, use_container_width=True,
+                        column_config={
+                            "stationName": st.column_config.TextColumn("Station Name"),
+                                "vehicle": st.column_config.TextColumn("Coach"),
+                            "startTime": st.column_config.DatetimeColumn("Start Time", 
+                                                                        format="MM/DD/YY h:mmA"),
+                                "endTime": st.column_config.DatetimeColumn("End Time",
+                                                                            format="MM/DD/YY h:mmA"),
+                                "energy": st.column_config.NumberColumn("Energy (kWh)"),
+                                "totalChargingDuration": st.column_config.TextColumn("Charging Duration"),
+                                "totalSessionDuration": st.column_config.TextColumn("Session Duration"),
+                                # "timeIdle": st.column_config.TextColumn("Time Idle"),
+                                "startBatteryPercentage": st.column_config.ProgressColumn("Start SOC (%)",
+                                                                                        format='%d%%',
+                                                                                        min_value=0,max_value=100),
+                                "stopBatteryPercentage": st.column_config.ProgressColumn("End SOC (%)",
+                                                                                        format='%d%%',
+                                                                                        min_value=0,max_value=100),
+                                "endedBy": st.column_config.TextColumn("Ended By"),
+                        },
+                            column_order=[
+                                "vehicle",
+                                "stationName",
+                                "startBatteryPercentage",
+                                "stopBatteryPercentage",
+                                "totalChargingDuration",
+                                "totalSessionDuration",
+                                "timeIdle",
+                                "startTime",
+                                "endTime",
+                                # "energy",
+                                "endedBy",
+                            ])
+
+            # make time_zone unaware
+            df_copy = df.copy()
+            df_copy['startTime'] = df_copy['startTime'].dt.tz_localize(None)
+            df_copy['endTime'] = df_copy['endTime'].dt.tz_localize(None)
+            df_copy['startTime'] = df_copy['startTime'].dt.strftime('%m/%d/%y %I:%M %p')
+            df_copy['endTime'] = df_copy['endTime'].dt.strftime('%m/%d/%y %I:%M %p')
+        else:
+            st.info("No charging history found for this time period.")
+
     else:
         st.info("No charging history found for this time period.")
