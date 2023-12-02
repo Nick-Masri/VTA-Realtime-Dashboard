@@ -2,7 +2,7 @@
 streamlit
 supabase~=1.0.3
 numpy
-pandas
+pandas== 2.0.3
 # ploting (vehicles soc graph)
 plotly
 # shapely
@@ -17,3 +17,12 @@ requests
 zeep
 # timezone
 pytz
+# optimization 
+matlab
+pyyaml
+gurobipy
+#consumption model
+pickle-mixin
+pgbm
+mapie==0.7.0
+scikit-learn==1.3.0

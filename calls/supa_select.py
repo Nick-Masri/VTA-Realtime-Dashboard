@@ -33,11 +33,11 @@ def supabase_blocks(active=True):
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=5))
 def supabase_soc():
     supabase = setup_client()
-    yesterday = datetime.today() - pd.Timedelta(days=1)
-    response = supabase.table('soc').select("*").gt("created_at", yesterday).execute()
+    # yesterday = datetime.today() - pd.Timedelta(days=1)/
+    response = supabase.table('soc').select("*").order("created_at", desc=True).limit(10).execute()
     data = response.data
     df = pd.DataFrame(data)
-    # st.write(df)
+    # st.write(df.columns)
     df['vehicle'] = df['vehicle'].astype(str)
     df['created_at'] = pd.to_datetime(df['created_at'])
     df.sort_values(by='created_at', ascending=False, inplace=True)

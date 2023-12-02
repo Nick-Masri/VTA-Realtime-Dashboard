@@ -87,22 +87,20 @@ def dashboard():
     column_config['last_seen'] = st.column_config.TextColumn("Time Offline")
         
     # Idle
-  
     if idle is not None and not idle.empty:
+        st.subheader("⌛ Idle")
         idle = idle.sort_values('transmission_hrs')
         idle.style.background_gradient(cmap='RdYlGn_r', vmin=1, vmax=24 * 4, axis=1)
         idle = idle[['vehicle', 'soc', 'last_seen']]
         idle['soc'] = idle['soc'].astype(int)
-        st.subheader("⌛ Idle")
         st.dataframe(idle, hide_index=True, use_container_width=True, column_config=column_config)
 
     # Offline
-    offline = offline.sort_values('transmission_hrs')
-    offline = offline[['vehicle', 'last_seen', 'odometer']]
     if offline is not None and not offline.empty:
         st.subheader("⚠️ Offline for more than a day")
+        offline = offline.sort_values('transmission_hrs')
+        offline = offline[['vehicle', 'last_seen', 'odometer']]
         st.dataframe(offline, use_container_width=True, hide_index=True, column_config=column_config)
-
 
 def get_overview_df():
     # initialize

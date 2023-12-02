@@ -1,0 +1,7 @@
+gurobipy
+matlab
+matlabengineforpython
+numpy
+pandas
+PyYAML
+pgbm==1.8.0
