@@ -27,7 +27,7 @@ def format_duration(col):
 def show_charger_history():      
     # st.caption("Currently only shows the last 7 days of charging history. In the future there will be a way to query for a longer and specific time period.")
     # ask for start and end date input
-    start_date = st.date_input('Start Date', value=pd.Timestamp.now(tz='US/Pacific') - pd.Timedelta(days=7), format="MM/DD/YYYY")
+    start_date = st.date_input('Start Date', value=pd.Timestamp.now(tz='US/Pacific') - pd.Timedelta(days=8), format="MM/DD/YYYY")
     end_date = st.date_input('End Date', value=pd.Timestamp.now(tz='US/Pacific'), format="MM/DD/YYYY")
 
     df = chargepoint_past_sessions(start_date, end_date)
