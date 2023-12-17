@@ -4,6 +4,8 @@ import numpy as np
 from datetime import datetime
 import math
 
+
+
 def time_to_quarter(datetime_str):
     dt = datetime.strptime(datetime_str, '%I:%M %p')
     total_minutes = dt.hour * 60 + dt.minute

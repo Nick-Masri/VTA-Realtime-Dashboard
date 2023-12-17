@@ -8,7 +8,6 @@ import os
 import warnings
 import streamlit as st
 import sys
-
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 class ChargeOpt:
@@ -117,8 +116,6 @@ class ChargeOpt:
 
         # MIP Gap
         m.setParam('MIPGap', 0.03)
-
-
 
         #########################################
         # Defining Decision Vars
