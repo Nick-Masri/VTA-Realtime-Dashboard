@@ -202,7 +202,7 @@ def show_and_format_block_history(blocks, df, key):
 
             st.write("### Service Data")
             show_details = st.checkbox("Toggle More Details", key=key)
-            exclude_na = st.checkbox("Exclude Rows with Unmatched Start or End SOC", key = key + "nan" )
+            exclude_na = st.checkbox("Exclude Rows with Unmatched Start or End SOC", key = key + "nan", value=True)
             if show_details:
                 block_col_order = ["date", "coach", "id", "block_id",
                                 "block_startTime",
