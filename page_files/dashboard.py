@@ -58,17 +58,18 @@ def dashboard():
     column_config = data.dash_column_config
 
     # Active Blocks
-    if serving is not None:
+    if serving is not None and not serving.empty:
         st.subheader("🚏 In Service")
         df = df[~df['vehicle'].isin(serving['coach'])]
         show_active_blocks(serving)
 
-    # Actively Charging
+
     if charging is not None and not charging.empty:
-        st.subheader("🔌 Currently Charging")
-        # current soc if less than equal to 100 and above 0 otherwise soc
+        # Actively Charging
         charging = charging[['soc', 'vehicle', 'stationName', 'totalSessionDuration']]
         charging = charging.sort_values('vehicle', ascending=True)
+        st.subheader("🔌 Currently Charging")
+        # current soc if less than equal to 100 and above 0 otherwise soc
         st.dataframe(charging, hide_index=True, use_container_width=True, 
                         column_order=[
                              "vehicle", "stationName", "soc", "totalSessionDuration"],
