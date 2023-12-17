@@ -1,8 +1,8 @@
 import streamlit as st
+from helper import convert_block_time
 from page_files.dashboard import get_overview_df
 from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
-from datetime import datetime
 import data
 import pandas as pd
 from chargeopt.optimization import ChargeOpt
@@ -11,218 +11,196 @@ import plotly.graph_objects as go
 
 import altair as alt
 import numpy as np
-import plotly.express as px
-
-def select_blocks(buses_df: pd.DataFrame):
-    st.session_state["opt_input"] = "blocks"
-    st.session_state["buses"] = buses_df
-
-
-def select_chargers(blocks_df: pd.DataFrame):
-    st.session_state["opt_input"] = "chargers"
-    st.session_state["blocks"] = blocks_df
-
-def add_chargers_to_session(chargers_df: pd.DataFrame):
-    st.session_state["chargers"] = chargers_df
-    st.session_state["opt_input"] = 'display'
-
 def opt_form():
 
-
-    submit = False
-    keys = ['opt_input', 'buses', 'blocks', 'chargers']
+    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum']
     for key in keys:
         if key not in st.session_state:
             st.session_state[key] = None
-
-
-
-    supabase = False
 
     serving, charging, idle, offline, df = get_overview_df()
 
     # Mileage Data
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
-
     with st.form("Optimization Form"):
-        if st.session_state['opt_input'] == None:  
-            st.write("# Buses")
-            df = df.sort_values('transmission_hrs', ascending=True)
-            df = df[['vehicle', 'soc', 'status', 'last_seen']]
-            df['Select'] = df.apply(lambda row: True if row['status'] != 'Offline' else False, axis=1)
-            column_config = data.dash_column_config
-            column_config['last_seen'] = st.column_config.TextColumn("Time Offline", disabled=True)
-            column_config['status'] = st.column_config.SelectboxColumn("Status", 
-                                                                        options=['Idle', 'Charging',],
-                                                                        disabled=False)
-            df['soc'] = df['soc'].astype(int).astype(str) + '%'
-            column_config['soc'] = st.column_config.TextColumn("State of Charge", disabled=False)
-            edited_buses_df = st.data_editor(df, hide_index=True, column_config=column_config,
-                                            use_container_width=True,
-                                            column_order=['Select', 'vehicle', 'soc', 'status', 'last_seen'])
-            to_blocks = st.form_submit_button("Next ", on_click=select_blocks(edited_buses_df))
-            # if to_blocks:
-            #     st.experimental_rerun()
-        elif st.session_state['opt_input'] == 'blocks':
-            st.write("# Blocks")
-            supabase = False
-            # if using supabase
-            if supabase:
-                blocks = supabase_blocks(active=False)
-                blocks = blocks.drop_duplicates(subset=['block_id'])
-                blocks = blocks[['id', 'block_id', 'block_startTime', 'block_endTime']]
-                blocks['Select'] = True
-                blocks['Mileage'] = blocks['block_id'].map(mileages)
-                blocks['block_startTime'] = pd.to_datetime(blocks['block_startTime'], format="%H:%M:%S")
-                blocks['block_endTime'] = pd.to_datetime(blocks['block_endTime'], format="%H:%M:%S")
-                blocks['block_id'] = blocks['block_id'].astype(str)
 
-            else:
-                edited_buses_df = st.session_state['buses']
-                block_data = {
-                'block_id': ['7771', '7172', '6682', '6675', '6180', '7073', '7774', '7173/sx', '6686'],
-                # 'Mileage': [148, 119.9, 144.4, 144.4, 149.3, 113.3, 48.3, 29.2, 55.0]
-                # so it runs now, but real is above
-                'Mileage': [100, 100.9, 100.4, 100.4, 100.3, 113.3, 48.3, 29.2, 55.0]
+        st.write("# Buses")
+        df = df.sort_values('transmission_hrs', ascending=True)
+        df = df[['vehicle', 'soc', 'status', 'last_seen']]
+        df['Select'] = df.apply(lambda row: True if row['status'] != 'Offline' else False, axis=1)
+        column_config = data.dash_column_config
+        column_config['last_seen'] = st.column_config.TextColumn("Time Offline", disabled=True)
+        column_config['status'] = st.column_config.SelectboxColumn("Status", 
+                                                                    options=['Idle', 'Charging',],
+                                                                    disabled=False)
+        df['soc'] = df['soc'].astype(int).astype(str) + '%'
+        column_config['soc'] = st.column_config.TextColumn("State of Charge", disabled=False)
+        edited_buses_df = st.data_editor(df, hide_index=True, column_config=column_config,
+                                        use_container_width=True,
+                                        column_order=['Select', 'vehicle', 'soc', 'status', 'last_seen'])
 
-                }
-
-                blocks = pd.DataFrame(block_data)
+        st.write("# Blocks")
 
 
-                # highlight as many blocks as there are buses  
-                blocks['Select'] = False
-                num_buses = len(edited_buses_df[edited_buses_df.Select == True])
-                for i in range(num_buses):
-                    blocks.loc[i, 'Select'] = True
-                    
-                # if select is not true, make false
-                blocks['Select'] = blocks['Select'].fillna(False)
-                
-                # make start time and end time 6AM and 6PM (make it a time object)
-                blocks['block_startTime'] = pd.to_datetime('6:00:00', format="%H:%M:%S")
-                blocks['block_endTime'] = pd.to_datetime('12:00:00', format="%H:%M:%S")
+        df = pd.read_excel('data_files/BlockSummary_Oct2023_REV_identified below 165 mi range.xlsx', header=1)
+        df = df[['BLOCK', 'TOTAL MILES', 'PULL OUT', 'PULL IN']]
+        df = df[df['TOTAL MILES'] > 0]
 
-                # make id the first two digits of the block number
-                blocks['id'] = blocks['block_id'].str[:2]
+        # approved_blocks = st.toggle('Use approved blocks', value=True)
 
+        # TODO: figure out how to use approved blocks toggle
+        # if approved_blocks:
+            # from block 476 to 6081 
+        df = df.loc[50:79]
 
-            # # sort by mileage
-            # blocks = blocks.sort_values('Mileage', ascending=True)
+        blocks = df.copy()
+
+        # highlight as many blocks as there are buses  
+        blocks['Select'] = False
             
-            edited_blocks_df = st.data_editor(blocks, hide_index=True, use_container_width=True,
-                        column_config={
-                                "id": st.column_config.NumberColumn(
-                                        "Route ID",
-                                        disabled=False
-                                ),
-                                "block_id": st.column_config.TextColumn(
-                                    "Block ID",
+        # if select is not true, make false
+        # blocks['Select'] = blocks['Select'].fillna(False)
+        blocks.columns = ['block_id', 'Mileage', 'block_startTime', 'block_endTime', 'Select']
+        blocks['block_id'] = blocks['block_id'].astype(str)
+        # route id is first two digits of block id
+        blocks['id'] = blocks['block_id'].str[:2]
+
+        # convert block start and end times
+        blocks['block_startTime'] = blocks['block_startTime'].apply(convert_block_time)
+        blocks['block_endTime'] = blocks['block_endTime'].apply(convert_block_time)
+
+        # sort by mileage
+        blocks = blocks.sort_values('Mileage', ascending=True)
+
+        # drop nans
+        blocks = blocks.dropna(axis=1)
+
+        num_buses = len(edited_buses_df[edited_buses_df.Select == True])
+        for i in range(num_buses):
+            blocks.iat[i, blocks.columns.get_loc('Select')] = True
+        
+        edited_blocks_df = st.data_editor(blocks, hide_index=True, use_container_width=True,
+                    column_config={
+                            "id": st.column_config.NumberColumn(
+                                    "Route ID",
                                     disabled=False
-                                ),
-                                "block_startTime": st.column_config.TimeColumn(
-                                    "Start Time",
-                                    disabled=False,
-                                    format="h:mmA"
-                                ),
-                                "block_endTime": st.column_config.TimeColumn(  
-                                    "End Time",
-                                    disabled=False,
-                                    format="h:mmA"
-                                ),
-                                "Mileage": st.column_config.NumberColumn(
-                                    "Mileage",
-                                    disabled=False
-                                )},
-                            column_order=['Select', 'id', 'block_id', 'block_startTime', 'block_endTime', 'Mileage'],
-                            num_rows="dynamic")
+                            ),
+                            "block_id": st.column_config.TextColumn(
+                                "Block ID",
+                                disabled=False
+                            ),
+                            "block_startTime": st.column_config.TimeColumn(
+                                "Start Time",
+                                disabled=False,
+                                format="h:mmA"
+                            ),
+                            "block_endTime": st.column_config.TimeColumn(  
+                                "End Time",
+                                disabled=False,
+                                format="h:mmA"
+                            ),
+                            "Mileage": st.column_config.NumberColumn(
+                                "Mileage",
+                                disabled=False
+                            )},
+                        column_order=['Select', 'id', 'block_id', 'block_startTime', 'block_endTime', 'Mileage'],
+                        num_rows="dynamic")
 
-            to_chargers = st.form_submit_button("Next", on_click=select_chargers(edited_blocks_df))
-            # if to_chargers:
-            #     st.experimental_rerun()
-        elif st.session_state['opt_input'] == 'chargers':
-            st.write("# Chargers ")
-            chargers_df = chargepoint_stations()
-            if chargers_df is not None:
-                chargers_df = chargers_df[['stationName', 'networkStatus']]
-                chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
-                # change station name from format of VTA / STATION #1 to Station 1
-                chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
-                chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
-            else:
-                fake_stations = {'stationName': ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5'],
-                'networkStatus': ['Reachable', 'Reachable', 'Reachable', 'Reachable', 'Reachable'],
-                'Select': [True, True, True, True, True]}
-                chargers_df = pd.DataFrame(fake_stations)
-                
-            edited_chargers_df = st.data_editor(chargers_df, hide_index=True, use_container_width=True,
-                                                column_config={
-                                                    "stationName": st.column_config.TextColumn(
-                                                        "Station",
-                                                        disabled=True
-                                                    ),
-                                                    "networkStatus": st.column_config.TextColumn(
-                                                        "Status",
-                                                        disabled=True
-                                                    )},
-                                                column_order=['Select', 'stationName', 'networkStatus'])
-
-            submit = st.form_submit_button("Submit", on_click=add_chargers_to_session(edited_chargers_df))
-
-        elif st.session_state['opt_input'] == 'display':
-            # reset form and session state
-            submit = True
-            reset = st.form_submit_button("Reset")
-            if reset:
-                st.session_state['opt_input'] = None
-                submit = False
-                st.experimental_rerun()
-                # st.session_state['buses'] = None
-                # st.session_state['blocks'] = None
-
-
-
+        st.write("# Chargers ")
+        chargers_df = chargepoint_stations()
+        if chargers_df is not None:
+            chargers_df = chargers_df[['stationName', 'networkStatus']]
+            chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
+            # change station name from format of VTA / STATION #1 to Station 1
+            chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
+            chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
+        else:
+            fake_stations = {'stationName': ['Station 1', 'Station 2', 'Station 3', 'Station 4', 'Station 5'],
+            'networkStatus': ['Reachable', 'Reachable', 'Reachable', 'Reachable', 'Reachable'],
+            'Select': [True, True, True, True, True]}
+            chargers_df = pd.DataFrame(fake_stations)
             
-        # with options:
-        #     # st.info("Route Assignment Options Coming Soon")
-        #     # run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
-        #     st.info("Optimization Options Coming Soon")
-            # if run_type == 'Provide Assignments':
-            #     st.dataframe(pd.DataFrame({'bus': [1, 2, 3, 4, 5], 'day': [1, 1, 1, 1, 1], 'route': [np.nan, np.nan, np.nan, np.nan, np.nan]}))
-            #     st.info("Not legit for now, need to add dataframe editor")
-            # elif run_type == 'Heuristic':
-            #     st.info("Heuristic Coming Soon")
-                
-                
-            # display current config options from chargeopt/config.yml
+        edited_chargers_df = st.data_editor(chargers_df, hide_index=True, use_container_width=True,
+                                            column_config={
+                                                "stationName": st.column_config.TextColumn(
+                                                    "Station",
+                                                    disabled=True
+                                                ),
+                                                "networkStatus": st.column_config.TextColumn(
+                                                    "Status",
+                                                    disabled=True
+                                                )},
+                                            column_order=['Select', 'stationName', 'networkStatus'])
 
-    if submit:
-        st.toast("Solving...")
-
-        # get df's from session state
-        edited_buses_df = st.session_state['buses']
-        edited_blocks_df = st.session_state['blocks']
-        edited_chargers_df = st.session_state['chargers']
-
-        selected_buses = edited_buses_df[edited_buses_df.Select == True]
-        selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
-        selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
-
-        selected_buses = selected_buses[['vehicle', 'soc', 'status']]
-        selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
-        # make start time and end time hours and minutes, not military time, and include AM/PM)
-        selected_blocks['block_startTime'] = selected_blocks['block_startTime'].dt.strftime("%I:%M %p")
-        selected_blocks['block_endTime'] = selected_blocks['block_endTime'].dt.strftime("%I:%M %p")
-        selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
-        selected_chargers = selected_chargers[['stationName']]
-
-        opt = ChargeOpt(selected_buses, selected_blocks, selected_chargers)
-
-        results, startTimeNum = opt.solve()
-
-        st.toast("Complete")
+        submit = st.form_submit_button("Submit")
 
 
+
+        
+    # with options:
+    #     # st.info("Route Assignment Options Coming Soon")
+    #     # run_type = st.radio("Route Assignment", options=['Heuristic', 'Optimal'])
+    #     st.info("Optimization Options Coming Soon")
+        # if run_type == 'Provide Assignments':
+        #     st.dataframe(pd.DataFrame({'bus': [1, 2, 3, 4, 5], 'day': [1, 1, 1, 1, 1], 'route': [np.nan, np.nan, np.nan, np.nan, np.nan]}))
+        #     st.info("Not legit for now, need to add dataframe editor")
+        # elif run_type == 'Heuristic':
+        #     st.info("Heuristic Coming Soon")
+            
+            
+        # display current config options from chargeopt/config.yml
+
+        if submit: 
+            st.toast("Solving...")
+
+            # # get df's from session state
+            # edited_buses_df = st.session_state['buses']
+            # edited_blocks_df = st.session_state['blocks']
+            # edited_chargers_df = st.session_state['chargers']
+
+            selected_buses = edited_buses_df[edited_buses_df.Select == True]
+            selected_blocks = edited_blocks_df[edited_blocks_df.Select == True]
+            selected_chargers = edited_chargers_df[edited_chargers_df.Select == True]
+
+            selected_buses = selected_buses[['vehicle', 'soc', 'status']]
+            selected_blocks = selected_blocks[['block_id', 'block_startTime', 'block_endTime', 'Mileage']]
+            # make start time and end time hours and minutes, not military time, and include AM/PM)
+            selected_blocks['block_startTime'] = selected_blocks['block_startTime'].dt.strftime("%I:%M %p")
+            selected_blocks['block_endTime'] = selected_blocks['block_endTime'].dt.strftime("%I:%M %p")
+            selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
+            selected_chargers = selected_chargers[['stationName']]
+
+            opt = ChargeOpt(selected_buses, selected_blocks, selected_chargers)
+
+            results, startTimeNum = opt.solve()
+
+            st.toast("Complete")
+            st.toast(results)
+            
+            # save results, selected buses, blocks, and chargers to session state
+            st.session_state['results'] = results
+            st.session_state['startTimeNum'] = startTimeNum
+            st.session_state['buses'] = selected_buses
+            st.session_state['blocks'] = selected_blocks
+            st.session_state['chargers'] = selected_chargers
+
+
+
+
+
+    # get df's from session state
+    results = st.session_state['results']
+    startTimeNum = st.session_state['startTimeNum']
+    selected_buses = st.session_state['buses']
+    selected_blocks = st.session_state['blocks']
+    selected_chargers = st.session_state['chargers']
+
+    show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum)
+
+def show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum):
+    if selected_blocks is None or selected_chargers is None or selected_buses is None: 
+        return
+    else:
         with st.expander("Input Data", expanded=True):
             col1, col2, col3 = st.columns(3)
 
@@ -236,12 +214,9 @@ def opt_form():
             col3.write("Chargers:")
             col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
-
-        if results is None:
-            st.toast("Infeasible Model")
-            st.error("Report Error")
+        if results == 'Model is infeasible':
+            st.warning(results)
         elif results == 'Optimal solution found':
-            st.toast(results)
             # st.write(results)
 
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
@@ -267,7 +242,7 @@ def opt_form():
             cost = float(cost)
             st.metric("Cost", f"${cost:.2f}")
             # visualize in altair
-     
+
             # visualize assignments:
             # 'bus', 'day', 'route'
             # here is where it is saved
@@ -288,21 +263,44 @@ def opt_form():
             # visualize assignments: 'bus', 'day', 'route'
             assignment_df = pd.read_csv(f'{path}/assignments_{filename}.csv')
 
+            # map bus to bus number using edited buses_df
+            # reset index
+            st.write("### Bus Assignments")
+            buses = selected_buses.reset_index()
+            assignment_df['bus'] = assignment_df['bus'].map(buses['vehicle'])
+            # map route to route number using edited blocks_df
+            routes = selected_blocks.reset_index()
+            assignment_df['route'] = assignment_df['route'].map(routes['block_id'])
+            assignment_df = assignment_df[assignment_df['assignment'] == 1]
+            today = pd.Timestamp.today().strftime("%A")
+            days = []
+            for i in range(7):
+                day = pd.Timestamp.today() + pd.Timedelta(days=i)
+                day = day.strftime("%A")
+                days.append(day)
+            day_map = {i: day for i, day in enumerate(days)}
+            assignment_df['day'] = assignment_df['day'].map(day_map)
 
-            st.write("### Assignment Distribution")
-            filtered_assignment_df = assignment_df[assignment_df['assignment'] == 1]
-            st.write(
-                alt.Chart(filtered_assignment_df).mark_circle().encode(
-                    x='day:O',
-                    y='route:O',
-                    color='route:N',
-                    column='bus:N',
-                    size=alt.value(100),  # controls the size of circles
-                    tooltip=['day', 'route', 'bus']
-                ).properties(
-                    width=alt.Step(40)  # controls width of each facet
-                )
-            )
+            assignment_df.drop(columns=['assignment'], inplace=True)
+            # make day the first column
+            assignment_df = assignment_df[['day', 'bus', 'route']]
+            st.dataframe(assignment_df, use_container_width=True, hide_index=True)
+
+
+            # st.write("### Assignment Distribution")
+            # filtered_assignment_df = assignment_df[assignment_df['assignment'] == 1]
+            # st.write(
+            #     alt.Chart(filtered_assignment_df).mark_circle().encode(
+            #         x='day:O',
+            #         y='route:O',
+            #         c='route:N',
+            #         column='bus:N',
+            #         size=alt.value(100),  # controls the size of circles
+            #         tooltip=['day', 'route', 'bus']
+            #     ).properties(
+            #         width=alt.Step(40)  # controls width of each facet
+            #     )
+            # )
 
 
             # visualize twodim df: 'bus', 'time', 'powerCB', 'gridPowToB', 'eB'
