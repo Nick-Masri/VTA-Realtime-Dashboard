@@ -1,4 +1,5 @@
 import streamlit as st
+from helper import convert_block_time
 from page_files.dashboard import get_overview_df
 from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
@@ -39,49 +40,44 @@ def opt_form():
                                         column_order=['Select', 'vehicle', 'soc', 'status', 'last_seen'])
 
         st.write("# Blocks")
-        supabase = False
-        # if using supabase
-        if supabase:
-            blocks = supabase_blocks(active=False)
-            blocks = blocks.drop_duplicates(subset=['block_id'])
-            blocks = blocks[['id', 'block_id', 'block_startTime', 'block_endTime']]
-            blocks['Select'] = True
-            blocks['Mileage'] = blocks['block_id'].map(mileages)
-            blocks['block_startTime'] = pd.to_datetime(blocks['block_startTime'], format="%H:%M:%S")
-            blocks['block_endTime'] = pd.to_datetime(blocks['block_endTime'], format="%H:%M:%S")
-            blocks['block_id'] = blocks['block_id'].astype(str)
-
-        else:
-            block_data = {
-            'block_id': ['7771', '7172', '6682', '6675', '6180', '7073', '7774', '7173/sx', '6686'],
-            # 'Mileage': [148, 119.9, 144.4, 144.4, 149.3, 113.3, 48.3, 29.2, 55.0]
-            # so it runs now, but real is above
-            'Mileage': [100, 100.9, 100.4, 100.4, 100.3, 113.3, 48.3, 29.2, 55.0]
-
-            }
-
-            blocks = pd.DataFrame(block_data)
 
 
-            # highlight as many blocks as there are buses  
-            blocks['Select'] = False
-            num_buses = len(edited_buses_df[edited_buses_df.Select == True])
-            # for i in range(num_buses):
-            #     blocks.loc[i, 'Select'] = True
-                
-            # if select is not true, make false
-            blocks['Select'] = blocks['Select'].fillna(False)
+        df = pd.read_excel('data_files/BlockSummary_Oct2023_REV_identified below 165 mi range.xlsx', header=1)
+        df = df[['BLOCK', 'TOTAL MILES', 'PULL OUT', 'PULL IN']]
+        df = df[df['TOTAL MILES'] > 0]
+
+        # approved_blocks = st.toggle('Use approved blocks', value=True)
+
+        # TODO: figure out how to use approved blocks toggle
+        # if approved_blocks:
+            # from block 476 to 6081 
+        df = df.loc[50:79]
+
+        blocks = df.copy()
+
+        # highlight as many blocks as there are buses  
+        blocks['Select'] = False
             
-            # make start time and end time 6AM and 6PM (make it a time object)
-            blocks['block_startTime'] = pd.to_datetime('6:00:00', format="%H:%M:%S")
-            blocks['block_endTime'] = pd.to_datetime('12:00:00', format="%H:%M:%S")
+        # if select is not true, make false
+        # blocks['Select'] = blocks['Select'].fillna(False)
+        blocks.columns = ['block_id', 'Mileage', 'block_startTime', 'block_endTime', 'Select']
+        blocks['block_id'] = blocks['block_id'].astype(str)
+        # route id is first two digits of block id
+        blocks['id'] = blocks['block_id'].str[:2]
 
-            # make id the first two digits of the block number
-            blocks['id'] = blocks['block_id'].str[:2]
+        # convert block start and end times
+        blocks['block_startTime'] = blocks['block_startTime'].apply(convert_block_time)
+        blocks['block_endTime'] = blocks['block_endTime'].apply(convert_block_time)
 
+        # sort by mileage
+        blocks = blocks.sort_values('Mileage', ascending=True)
 
-        # # sort by mileage
-        # blocks = blocks.sort_values('Mileage', ascending=True)
+        # drop nans
+        blocks = blocks.dropna(axis=1)
+
+        num_buses = len(edited_buses_df[edited_buses_df.Select == True])
+        for i in range(num_buses):
+            blocks.iat[i, blocks.columns.get_loc('Select')] = True
         
         edited_blocks_df = st.data_editor(blocks, hide_index=True, use_container_width=True,
                     column_config={
@@ -266,6 +262,29 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
 
             # visualize assignments: 'bus', 'day', 'route'
             assignment_df = pd.read_csv(f'{path}/assignments_{filename}.csv')
+
+            # map bus to bus number using edited buses_df
+            # reset index
+            st.write("### Bus Assignments")
+            buses = selected_buses.reset_index()
+            assignment_df['bus'] = assignment_df['bus'].map(buses['vehicle'])
+            # map route to route number using edited blocks_df
+            routes = selected_blocks.reset_index()
+            assignment_df['route'] = assignment_df['route'].map(routes['block_id'])
+            assignment_df = assignment_df[assignment_df['assignment'] == 1]
+            today = pd.Timestamp.today().strftime("%A")
+            days = []
+            for i in range(7):
+                day = pd.Timestamp.today() + pd.Timedelta(days=i)
+                day = day.strftime("%A")
+                days.append(day)
+            day_map = {i: day for i, day in enumerate(days)}
+            assignment_df['day'] = assignment_df['day'].map(day_map)
+
+            assignment_df.drop(columns=['assignment'], inplace=True)
+            # make day the first column
+            assignment_df = assignment_df[['day', 'bus', 'route']]
+            st.dataframe(assignment_df, use_container_width=True, hide_index=True)
 
 
             # st.write("### Assignment Distribution")
