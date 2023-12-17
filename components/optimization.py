@@ -42,7 +42,7 @@ def opt_form():
         st.write("# Blocks")
 
 
-        df = pd.read_excel('data_files/BlockSummary_Oct2023_REV_identified below 165 mi range.xlsx', header=1)
+        df = pd.read_csv('data_files/block_miles.csv', header=1, delimiter=';')
         df = df[['BLOCK', 'TOTAL MILES', 'PULL OUT', 'PULL IN']]
         df = df[df['TOTAL MILES'] > 0]
 

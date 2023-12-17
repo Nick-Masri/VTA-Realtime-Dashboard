@@ -11,7 +11,7 @@ def show_energy_cons():
     
     v = st.selectbox('Select a vehicle', voption, key='v')
 
-    df = pd.read_excel('data_files/BlockSummary_Oct2023_REV_identified below 165 mi range.xlsx', header=1)
+    df = pd.read_csv('data_files/block_miles.csv', header=1, delimiter=';')
     df = df[['BLOCK', 'TOTAL MILES']]
     df = df[df['TOTAL MILES'] > 0]
 
