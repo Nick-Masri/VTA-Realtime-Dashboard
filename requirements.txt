@@ -3,7 +3,6 @@ streamlit
 supabase~=1.0.3
 numpy
 pandas
-openpyxl
 # ploting (vehicles soc graph)
 plotly
 # shapely
