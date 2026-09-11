@@ -48,8 +48,9 @@ def show_active_blocks(merged_df=None):
         # remove timezone again so it displays right
         merged_df['predictedArrival'] = pd.to_datetime(merged_df['predictedArrival']).dt.tz_localize(None)
         merged_df = merged_df.sort_values('transmission_hrs')
-        # none if transmission hrs > 2
-        merged_df['soc'] = merged_df['transmission_hrs'].apply(lambda x: 'N/A' if x > 2 else x)
+        # the reading is only meaningful if the bus transmitted recently
+        merged_df['soc'] = merged_df.apply(
+            lambda row: 'N/A' if row['transmission_hrs'] > 2 else row['soc'], axis=1)
         merged_df = merged_df[
             ['coach', 'id', 'block_id', 'block_startTime', 'predictedArrival', 'soc',
             #  'last_seen'
