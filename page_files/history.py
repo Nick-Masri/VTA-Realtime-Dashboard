@@ -12,6 +12,9 @@ def show_history():
         show_charger_history()
     elif selection == "Block Drive History":
         df = supabase_soc_history()
+        if df is None:
+            st.info("No vehicle history available.")
+            return
         df = df.sort_values('vehicle')
         blocks = get_block_data()
         show_and_format_block_history(blocks, df, key="all")
