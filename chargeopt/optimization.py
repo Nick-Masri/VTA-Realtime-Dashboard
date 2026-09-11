@@ -37,11 +37,81 @@ MIP_GAP = 0.03
 # as after, and one window can no longer cover both.
 CHANGE_CAP_SCOPE = 'day'
 
+# What each bus must have left at the end of the horizon.
+#   'start'    - at least what it began with. Repeatable: the plan can be run
+#                again tomorrow from the same state. This is the original.
+#   'reserve'  - only the 20% floor. Cheapest and easiest to solve, but the
+#                fleet ends flatter than it started, so the schedule is a
+#                one-off rather than a steady state.
+#   'fraction' - a fixed readiness target, END_SOC_FRACTION of the pack. Not
+#                strictly a relaxation: it is looser than 'start' for a bus
+#                that began above the target and tighter for one below it.
+END_SOC_MODE = 'start'
+END_SOC_FRACTION = 0.8
+
+# When some block cannot be covered by any selected bus, drop it and solve for
+# the rest rather than returning nothing. The dropped blocks are named in the
+# status so the schedule is never quietly partial.
+DROP_UNCOVERABLE_BLOCKS = True
+
 HIGHS_OPTIONS = {
     'mip_heuristic_effort': 0.5,
     'mip_detect_symmetry': True,
     'presolve': 'on',
 }
+
+
+def _can_cover(start_kwh, route_kwh, eB_min, eB_max):
+    """Whether a bus holding start_kwh could take a route needing route_kwh.
+
+    A horizon-wide transition cap gives each bus a single charging window. If
+    the end-of-horizon target needs charge the bus does not already have, that
+    window is spent restoring it after the route, so the bus has to leave on
+    what it is holding. Under an end target of the reserve floor nothing has to
+    be restored - eB never drops below it anyway - which frees the window for a
+    pre-route top-up and leaves only the pack size binding, as with per-day
+    windows.
+    """
+    window_spent_on_end_target = (
+        CHANGE_CAP_SCOPE == 'horizon' and END_SOC_MODE in ('start', 'fraction')
+    )
+    if window_spent_on_end_target:
+        return start_kwh >= eB_min + route_kwh
+    return eB_max >= eB_min + route_kwh
+
+
+def _max_matching(capable):
+    """Largest set of blocks assignable to distinct buses.
+
+    Each bus takes at most one route per day, so coverage is a bipartite
+    matching rather than a per-block test: a block only counts as coverable if
+    a bus is free for it once the other blocks are served too.
+    """
+    match_bus = {}
+    match_route = {}
+
+    def assign(route, seen):
+        for bus in capable[route]:
+            if bus in seen:
+                continue
+            seen.add(bus)
+            if bus not in match_bus or assign(match_bus[bus], seen):
+                match_bus[bus] = route
+                match_route[route] = bus
+                return True
+        return False
+
+    for route in sorted(capable, key=lambda r: len(capable[r])):
+        assign(route, set())
+    return match_route
+
+
+def _end_target(soc, eB_max, eB_min):
+    if END_SOC_MODE == 'reserve':
+        return eB_min
+    if END_SOC_MODE == 'fraction':
+        return eB_max * END_SOC_FRACTION
+    return eB_max * soc
 
 
 def _soc_fraction(raw):
@@ -98,6 +168,57 @@ class ChargeOpt:
         if report != 'All Clear':
             return None
 
+        block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
+            str(i) for i in range(len(routes))]
+
+        # A bus starting below the 20% floor cannot satisfy eB's lower bound,
+        # which otherwise surfaces as a bare "infeasible".
+        start_soc = {b: _soc_fraction(self.buses.iloc[b, 1]) for b in range(B)}
+        too_low = [
+            str(self.buses.iloc[b, 0]) for b in range(B)
+            if eB_max * start_soc[b] < eB_min
+        ]
+        if too_low:
+            return (
+                f"Below the {eB_min / eB_max:.0%} reserve at start: "
+                f"{', '.join(too_low)}"
+            ), startTimeNum
+
+        #####################################
+        # Coverage screen
+        #####################################
+        # Every selected block has to be run by some bus, so one block nothing
+        # can take makes the whole model infeasible. Screening first turns that
+        # into a named block instead of a solver shrug.
+        start_kwh = {b: eB_max * start_soc[b] for b in range(B)}
+        capable = {
+            r: {b for b in range(B)
+                if _can_cover(start_kwh[b], eRoute[r], eB_min, eB_max)}
+            for r in range(R)
+        }
+        matched = _max_matching(capable)
+        uncoverable = [r for r in range(R) if r not in matched]
+
+        dropped_note = ''
+        if uncoverable:
+            names = ', '.join(block_labels[r] for r in uncoverable)
+            if not DROP_UNCOVERABLE_BLOCKS:
+                return (
+                    f"No bus can cover block(s) {names} on its starting charge"
+                ), startTimeNum
+
+            keep = [r for r in range(R) if r in matched]
+            if not keep:
+                return (
+                    "None of the selected blocks can be covered by these buses"
+                ), startTimeNum
+
+            departure = np.asarray(departure)[keep]
+            arrival = np.asarray(arrival)[keep]
+            eRoute = np.asarray(eRoute)[keep]
+            R = len(keep)
+            dropped_note = f" - dropped block(s) {names}"
+
         tDep = np.zeros((R, D), dtype=int)
         tRet = np.zeros((R, D), dtype=int)
         for d in range(D):
@@ -112,19 +233,6 @@ class ChargeOpt:
 
         gridPowAvail = gridKWH
         gridPowPrice = init_grid_pricing(D)
-
-        # A bus starting below the 20% floor cannot satisfy eB's lower bound,
-        # which otherwise surfaces as a bare "infeasible".
-        start_soc = {b: _soc_fraction(self.buses.iloc[b, 1]) for b in range(B)}
-        too_low = [
-            str(self.buses.iloc[b, 0]) for b in range(B)
-            if eB_max * start_soc[b] < eB_min
-        ]
-        if too_low:
-            return (
-                f"Below the {eB_min / eB_max:.0%} reserve at start: "
-                f"{', '.join(too_low)}"
-            ), startTimeNum
 
         #####################################
         # Model
@@ -279,7 +387,7 @@ class ChargeOpt:
             soc = start_soc[b]
             for t in range(startTimeNum):
                 m.soc_bounds.add(m.eB[b, t] == eB_max * soc)
-            m.soc_bounds.add(m.eB[b, T - 1] >= eB_max * soc)
+            m.soc_bounds.add(m.eB[b, T - 1] >= _end_target(soc, eB_max, eB_min))
 
         #####################################
         # Route coverage
@@ -335,13 +443,13 @@ class ChargeOpt:
         has_solution = result.best_feasible_objective is not None
 
         if terminal == TerminationCondition.infeasible:
-            return "Model is infeasible", startTimeNum
+            return "Model is infeasible" + dropped_note, startTimeNum
         if not has_solution:
             if terminal == TerminationCondition.maxTimeLimit:
                 return (
-                    f"No solution found within {TIME_LIMIT_SECONDS}s"
+                    f"No solution found within {TIME_LIMIT_SECONDS}s" + dropped_note
                 ), startTimeNum
-            return "Model Error", startTimeNum
+            return "Model Error" + dropped_note, startTimeNum
 
         result.solution_loader.load_vars()
         obj_val = float(result.best_feasible_objective)
@@ -409,4 +517,4 @@ class ChargeOpt:
                 + (f" ({gap:.1%} gap)" if gap is not None else "")
             )
 
-        return status, startTimeNum
+        return status + dropped_note, startTimeNum
