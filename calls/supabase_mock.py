@@ -46,7 +46,7 @@ def _odometer(coach, at):
     return int(_BASE_ODOMETER[coach] + days * 0.9)
 
 
-def _in_service():
+def in_service():
     """Coaches out on a block right now, rotating by hour."""
     now = _now_pacific()
     rng = _rng(f'service-{now.strftime("%Y-%m-%d-%H")}')
@@ -57,7 +57,7 @@ def _in_service():
 def mock_soc():
     """Latest reading per coach - mirrors supabase_soc()."""
     now = _now_pacific()
-    serving = _in_service()
+    serving = in_service()
     rng = _rng(f'soc-{now.strftime("%Y-%m-%d-%H-%M")}')
     rows = []
 
@@ -142,7 +142,7 @@ def mock_blocks(active=True, days=14):
     now = _now_pacific()
 
     if active:
-        serving = _in_service()
+        serving = in_service()
         if not serving:
             return None
         rng = _rng(f'active-blocks-{now.strftime("%Y-%m-%d-%H")}')
@@ -174,7 +174,7 @@ def mock_blocks(active=True, days=14):
 def mock_active_location():
     """Latest GPS fix per coach - mirrors supabase_active_location()."""
     now = _now_pacific()
-    serving = _in_service()
+    serving = in_service()
     rng = _rng(f'location-{now.strftime("%Y-%m-%d-%H-%M")}')
     rows = []
 

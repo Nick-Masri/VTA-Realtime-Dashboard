@@ -58,12 +58,20 @@ def mock_stations():
 
 def _currently_charging():
     """Which stations are busy, rotating slowly so the demo looks alive."""
+    from calls.supabase_mock import in_service
+
     now = pd.Timestamp.now(tz='US/Pacific')
     rng = _rng(f'active-{now.strftime("%Y-%m-%d-%H")}')
     names = list(_STATION_SITES)
-    coaches = sorted(_COACH_MACS)
-    busy = rng.choice(len(names), size=3, replace=False)
-    picked = rng.choice(len(coaches), size=3, replace=False)
+
+    # A bus out on a block cannot also be plugged in.
+    coaches = [c for c in sorted(_COACH_MACS) if c not in in_service()]
+    if not coaches:
+        return {}
+
+    size = min(3, len(coaches), len(names))
+    busy = rng.choice(len(names), size=size, replace=False)
+    picked = rng.choice(len(coaches), size=size, replace=False)
     return {names[int(s)]: coaches[int(c)] for s, c in zip(busy, picked)}
 
 
