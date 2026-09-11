@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import os
 from zeep import Client
+from zeep.transports import Transport
 from zeep.wsse.username import UsernameToken
 from zeep.helpers import serialize_object
 import pydeck as pdk
@@ -36,7 +37,10 @@ def chargepoint_client():
 
     # Create a Zeep client with proper authentication
     wsse = UsernameToken(license_key, password)
-    client = Client(url, wsse=wsse)
+    # Without a bound transport, fetching and parsing the WSDL against a dead
+    # account can stall the whole page before the mock fallback is reached.
+    transport = Transport(timeout=10, operation_timeout=10)
+    client = Client(url, wsse=wsse, transport=transport)
     return client
 
 def chargepoint_locations():
