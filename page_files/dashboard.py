@@ -51,6 +51,10 @@ def dashboard():
     # get necessary data
     serving, charging, idle, offline, df = get_overview_df()
 
+    if df is None:
+        st.error("No vehicle data available - the Supabase backend returned nothing.")
+        return
+
     # show data scraping status
     show_data_scraping_status(df)
 
@@ -108,6 +112,9 @@ def get_overview_df():
 
     # get necessary data
     active_blocks, df, charging_sessions = active_info()
+
+    if df is None or df.empty:
+        return serving, charging, idle, offline, None
 
     # add transmission hrs and last seen
     df = make_transmission_hrs(df)

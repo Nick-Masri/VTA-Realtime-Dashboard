@@ -9,13 +9,18 @@ def swiftly_call_active_blocks():
     # Fetch data from API
     url = "https://api.goswift.ly/real-time/vta/active-blocks"
     headers = {"Authorization": st.secrets["SWIFTLY_AUTH"]}
-    response = requests.get(url, headers=headers)
-    json_data = response.json()
 
-    # Extract relevant data and create DataFrame
-    block_data = json_data["data"]["blocksByRoute"]
-    df = pd.DataFrame(block_data)
-    return df
+    try:
+        response = requests.get(url, headers=headers, timeout=15)
+        response.raise_for_status()
+        block_data = response.json()["data"]["blocksByRoute"]
+    except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
+        # Swiftly is a live third-party feed; a bad response must not take the
+        # whole portal down. Callers fall back to the Supabase block history.
+        st.warning(f"Swiftly API unavailable, using stored block history ({exc})")
+        return pd.DataFrame()
+
+    return pd.DataFrame(block_data)
 
 @st.cache_data(show_spinner=False, max_entries=1)
 def swiftly_active_blocks():

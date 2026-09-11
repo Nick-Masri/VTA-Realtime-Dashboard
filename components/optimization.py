@@ -20,6 +20,10 @@ def opt_form():
 
     serving, charging, idle, offline, df = get_overview_df()
 
+    if df is None or df.empty:
+        st.error("No vehicle data available - the Supabase backend returned nothing.")
+        return
+
     # Mileage Data
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
     with st.form("Optimization Form"):
