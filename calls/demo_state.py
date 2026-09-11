@@ -16,9 +16,26 @@ _LABELS = {
 
 _state = {key: False for key in _LABELS}
 
+# Integration failures worth showing the operator. Collected rather than
+# printed at the call site: those sit inside cached functions, so Streamlit
+# replays them once per call site per rerun, which is how the same "Supabase
+# unavailable" line ended up on the page twice.
+_issues = []
+
 
 def mark(source):
     _state[source] = True
+
+
+def note_issue(message):
+    message = str(message)
+    if message not in _issues:
+        _issues.append(message)
+
+
+def render_issues():
+    for message in _issues:
+        st.warning(message)
 
 
 def simulated_sources():
@@ -30,22 +47,20 @@ def any_simulated():
 
 
 def render_banner():
-    """One deliberate notice, rather than a caption per failed integration."""
-    active = simulated_sources()
-    if not active:
+    """One deliberate notice, rather than a caption per failed integration.
+
+    Deliberately does not enumerate which sources fell back. Doing so meant
+    waiting for every tab body to report before the wording was final, which
+    put the disclosure at the very bottom of the script - the one element that
+    must not be the last thing to appear.
+    """
+    if not any_simulated():
         return
 
-    names = [_LABELS[key] for key in active]
-    if len(names) == 1:
-        what = names[0]
-    elif len(names) == 2:
-        what = ' and '.join(names)
-    else:
-        what = ', '.join(names[:-1]) + ' and ' + names[-1]
-
     st.info(
-        f"**Demonstration mode** — {what} shown here are simulated. "
-        "Live Proterra, Swiftly and ChargePoint feeds are pending reconnection; "
-        "the models and schedules run exactly as they would on live data.",
+        "**Demonstration mode** — the fleet, charger and weather data shown "
+        "here are simulated. Live Proterra, Swiftly and ChargePoint feeds are "
+        "pending reconnection; the models and schedules run exactly as they "
+        "would on live data.",
         icon=":material/science:",
     )
