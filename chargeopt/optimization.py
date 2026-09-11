@@ -54,6 +54,20 @@ END_SOC_FRACTION = 0.8
 # status so the schedule is never quietly partial.
 DROP_UNCOVERABLE_BLOCKS = True
 
+# Statuses that mean a schedule was written. Callers test with is_solved rather
+# than comparing strings, so the wording can carry caveats - a dropped block, a
+# remaining gap - without the results view falling through to nothing.
+SOLVED_PREFIXES = ('Optimal solution found', 'Stopped at')
+
+
+def is_solved(status):
+    return bool(status) and str(status).startswith(SOLVED_PREFIXES)
+
+
+def is_partial(status):
+    """Solved, but with something the operator needs to know about."""
+    return is_solved(status) and ('dropped' in str(status) or str(status).startswith('Stopped'))
+
 HIGHS_OPTIONS = {
     'mip_heuristic_effort': 0.5,
     'mip_detect_symmetry': True,
@@ -129,16 +143,16 @@ class ChargeOpt:
         self.startTime = datetime.now()
 
     def solve(self):
+        startTimeNum = time_to_quarter(self.startTime.strftime('%I:%M %p'))
+
         B = len(self.buses)
         if B == 0:
-            st.write("No buses selected")
-            return None
+            return "No buses selected", startTimeNum
 
         routes = self.routes
         R = len(routes)
         if R == 0:
-            st.write("No routes selected")
-            return None
+            return "No blocks selected", startTimeNum
 
         #####################################
         # Config
@@ -160,13 +174,12 @@ class ChargeOpt:
 
         D = 3
         dt = 0.25
-        startTimeNum = time_to_quarter(self.startTime.strftime('%I:%M %p'))
         T = D * 96
         optimized_time = [t for t in range(startTimeNum, T)]
 
         [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
         if report != 'All Clear':
-            return None
+            return report, startTimeNum
 
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
             str(i) for i in range(len(routes))]
