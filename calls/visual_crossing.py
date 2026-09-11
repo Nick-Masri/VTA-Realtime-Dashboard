@@ -23,7 +23,17 @@ _FIELDS = ('cloudcover', 'humidity', 'visibility', 'winddir',
            'windspeed', 'feelslikemin', 'solarradiation', 'precipcover')
 
 
+# Set when a lookup falls back, so the page can mention it once rather than
+# having the cached function replay a caption at every call site.
+_ESTIMATED = {'value': False}
+
+
+def weather_is_estimated():
+    return _ESTIMATED['value']
+
+
 def _seasonal_normals():
+    _ESTIMATED['value'] = True
     return dict(zip(_FIELDS, _CLIMATOLOGY[datetime.date.today().month]))
 
 
@@ -36,7 +46,6 @@ def get_todays_weather():
     try:
         key = st.secrets['VISUAL_CROSSING_KEY']
     except Exception:
-        st.caption("Weather API key not configured - using seasonal averages for Santa Clara.")
         return _seasonal_normals()
 
     params = {
@@ -51,5 +60,7 @@ def get_todays_weather():
         response.raise_for_status()
         return response.json()['days'][0]
     except (requests.RequestException, ValueError, KeyError, IndexError) as exc:
-        st.caption(f"Weather API unavailable ({exc}) - using seasonal averages for Santa Clara.")
+        # Never interpolate the exception: requests puts the full request URL,
+        # api key and all, into its message.
+        del exc
         return _seasonal_normals()
