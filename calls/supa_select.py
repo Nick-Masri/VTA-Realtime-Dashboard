@@ -12,11 +12,24 @@ def setup_client():
     supabase: Client = create_client(url, key)
     return supabase
 
+
+def _fetch(build_query):
+    """Run a Supabase query, returning None instead of raising.
+
+    A free-tier project auto-pauses after inactivity, which otherwise turns
+    every tab of the portal into a stack trace.
+    """
+    try:
+        return build_query(setup_client()).execute().data
+    except Exception as exc:
+        st.warning(f"Supabase unavailable ({exc})")
+        return None
+
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
 def supabase_blocks(active=True):
-    supabase = setup_client()
-    response = supabase.table('block_history').select("*").order("created_at", desc=True).execute()
-    data = response.data
+    data = _fetch(lambda sb: sb.table('block_history').select("*").order("created_at", desc=True))
+    if not data:
+        return None
     df = pd.DataFrame(data).drop(columns='id')
 
     if len(df) > 0:
@@ -32,10 +45,9 @@ def supabase_blocks(active=True):
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=5))
 def supabase_soc():
-    supabase = setup_client()
-    # yesterday = datetime.today() - pd.Timedelta(days=1)/
-    response = supabase.table('soc').select("*").order("created_at", desc=True).limit(10).execute()
-    data = response.data
+    data = _fetch(lambda sb: sb.table('soc').select("*").order("created_at", desc=True).limit(10))
+    if not data:
+        return None
     df = pd.DataFrame(data)
     # st.write(df.columns)
     df['vehicle'] = df['vehicle'].astype(str)
@@ -52,9 +64,9 @@ def supabase_soc():
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_active_location():
-    supabase = setup_client()
-    response = supabase.table('location').select("*").order("created_at", desc=True).execute()
-    data = response.data
+    data = _fetch(lambda sb: sb.table('location').select("*").order("created_at", desc=True))
+    if not data:
+        return None
     df = pd.DataFrame(data)
     if len(df) > 0:
         df['coach'] = df['coach'].astype(str)
@@ -68,13 +80,13 @@ def supabase_active_location():
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_soc_history(vehicle=None):
-    supabase = setup_client()
     if vehicle is None:
-        response = supabase.table('soc').select("*").order("created_at", desc=True).execute()
-    elif vehicle is not None:
-        response = supabase.table('soc').select("*").eq('vehicle', vehicle).order("created_at", desc=True).execute()
+        data = _fetch(lambda sb: sb.table('soc').select("*").order("created_at", desc=True))
+    else:
+        data = _fetch(lambda sb: sb.table('soc').select("*").eq('vehicle', vehicle).order("created_at", desc=True))
 
-    data = response.data
+    if not data:
+        return None
     df = pd.DataFrame(data)
     df['vehicle'] = df['vehicle'].astype(str)
     df['created_at'] = pd.to_datetime(df['created_at'])

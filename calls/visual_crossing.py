@@ -4,15 +4,19 @@ import datetime
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=30))
 def get_todays_weather():
-    #TODO remove api key from url
-    url = 'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services/timeline/santa%20clara/today?unitGroup=metric&include=days%2Ccurrent&key=3GYK8TN3A8NWKPGCYYW5S59CM&contentType=json'
-    response = requests.get(url)
+    url = (
+        'https://weather.visualcrossing.com/VisualCrossingWebServices/rest/services'
+        '/timeline/santa%20clara/today'
+    )
+    params = {
+        'unitGroup': 'metric',
+        'include': 'days,current',
+        'contentType': 'json',
+        'key': st.secrets['VISUAL_CROSSING_KEY'],
+    }
 
-    if response.status_code == 200:
-        response_json = response.json()
-
-        weather = response_json['days'][0]
-    else:
+    response = requests.get(url, params=params, timeout=15)
+    if response.status_code != 200:
         raise Exception("Error retriving weather data")
-    
-    return weather
+
+    return response.json()['days'][0]

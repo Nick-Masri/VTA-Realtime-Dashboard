@@ -28,9 +28,14 @@ def show_energy_cons():
     block = int(st.selectbox('Select block', block_option, key='block'))
 
 
+    live_df = None
     if get_live_soc:
-        serving, charging, idle, offline, df = get_overview_df()
-        df = df[['vehicle', 'soc']]
+        serving, charging, idle, offline, live_df = get_overview_df()
+        if live_df is None or live_df.empty:
+            st.warning("Live SOC unavailable - enter the current SOC manually below.")
+
+    if live_df is not None and not live_df.empty:
+        df = live_df[['vehicle', 'soc']]
         # convert to dictionary
         # st.write(df.vehicle.dtype)
         df['vehicle'] = df['vehicle'].astype(int)
@@ -44,7 +49,11 @@ def show_energy_cons():
 
 
     miles = block_to_miles_dictionary[block]
-    energy_used, probability = predict_consumption(block, v, miles, 0 if startSOC=='' else float(startSOC))
+    try:
+        energy_used, probability = predict_consumption(block, v, miles, 0 if startSOC=='' else float(startSOC))
+    except Exception as exc:
+        st.error(f"Energy prediction unavailable ({exc})")
+        return
     # st.button('Generate estimated energy used')
     if energy_used is not None and energy_used != -1 and startSOC is not None and startSOC != '':
         # st.write('The amount of energy the bus uses in the route is ' + str(energy_used) + '%')

@@ -115,6 +115,9 @@ def show_vehicles():
         options)
 
     df = supabase_soc_history(vehicle=vehicle)
+    if df is None:
+        st.info(f"No history available for vehicle {vehicle}.")
+        return
     df['created_at'] = pd.to_datetime(df['created_at'])
     df = df.sort_values('created_at', ascending=False)
 
