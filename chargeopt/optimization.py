@@ -16,17 +16,25 @@ from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
 # HiGHS is open source and slower than Gurobi on a model this size, so the
-# solve is bounded and any incumbent found by then is used.
-TIME_LIMIT_SECONDS = 180
+# solve is bounded and any incumbent found by then is used. The full ten-bus
+# fleet lands around 110-125s but varies with machine load - one run in five
+# reached 180s with nothing - so the ceiling carries real headroom.
+TIME_LIMIT_SECONDS = 300
 MIP_GAP = 0.03
 
 # The binding difficulty here is finding any feasible schedule, not closing the
 # gap, so HiGHS is pushed well past its default heuristic effort of 0.05.
 # The original capped charger transitions at 2 across the entire run, which over
 # D=3 days forces one contiguous charging window for the whole horizon rather
-# than one per night. That reading left a 4-bus, 3-route case without any
-# feasible solution after 600s; per-day it proves optimal in about 16. Set this
-# back to 'horizon' to restore the original constraint.
+# than one per night. That reading left a 4-bus, 3-route case at mixed starting
+# SOC without any feasible solution after 600s; per-day it proves optimal in
+# about 16.
+#
+# 'horizon' is workable when buses start at or near a full pack: a bus that
+# starts full needs no pre-route top-up, so one window after its route is
+# enough, and the whole ten-bus fleet then solves to optimality in about two
+# minutes. Start a bus low enough that it must charge before its route as well
+# as after, and one window can no longer cover both.
 CHANGE_CAP_SCOPE = 'day'
 
 HIGHS_OPTIONS = {
