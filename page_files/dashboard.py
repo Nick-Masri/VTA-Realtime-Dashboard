@@ -10,6 +10,7 @@ from components.active_blocks import show_active_blocks, get_active_blocks
 from page_files.chargers import format_active_sessions
 # data
 import data
+from calls import demo_state
 
 
 
@@ -21,8 +22,11 @@ def show_data_scraping_status(df):
     hours = (pd.Timestamp.now(tz=pytz.timezone('US/Pacific')) - last_updated).total_seconds() / 3600
     options = ['🟢', '🟡', '🔴']
     emoji = options[0] if hours <= 2 else options[1] if hours <= 5 else options[2]
-    last_updated = last_updated.strftime('%m/%d/%Y %I:%M %p') 
-    st.caption(f'{emoji} Last accessed Proterra and Swiftly data  on {last_updated} PST') 
+    last_updated = last_updated.strftime('%m/%d/%Y %I:%M %p')
+    if demo_state.any_simulated():
+        st.caption(f'Simulated fleet state as of {last_updated} PST')
+    else:
+        st.caption(f'{emoji} Last accessed Proterra and Swiftly data on {last_updated} PST')
           
 def make_transmission_hrs(df):
     df['last_transmission'] = pd.to_datetime(df['last_transmission'])
@@ -50,6 +54,10 @@ def dashboard():
 
     # get necessary data
     serving, charging, idle, offline, df = get_overview_df()
+
+    if df is None:
+        st.error("No vehicle data available - the Supabase backend returned nothing.")
+        return
 
     # show data scraping status
     show_data_scraping_status(df)
@@ -108,6 +116,9 @@ def get_overview_df():
 
     # get necessary data
     active_blocks, df, charging_sessions = active_info()
+
+    if df is None or df.empty:
+        return serving, charging, idle, offline, None
 
     # add transmission hrs and last seen
     df = make_transmission_hrs(df)

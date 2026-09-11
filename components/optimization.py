@@ -5,7 +5,7 @@ from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
-from chargeopt.optimization import ChargeOpt
+from chargeopt.optimization import ChargeOpt, is_partial, is_solved
 import os
 import plotly.graph_objects as go
 
@@ -19,6 +19,10 @@ def opt_form():
             st.session_state[key] = None
 
     serving, charging, idle, offline, df = get_overview_df()
+
+    if df is None or df.empty:
+        st.error("No vehicle data available - the Supabase backend returned nothing.")
+        return
 
     # Mileage Data
     mileages = {'7774': 105.9, '7773': 167.3, '7772': 145.9, '7771': 107.0, '7072': 112.1}
@@ -214,10 +218,16 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             col3.write("Chargers:")
             col3.dataframe(selected_chargers, hide_index=True, use_container_width=True)
 
-        if results == 'Model is infeasible':
+        # The solver's settings are not exposed, so whatever it decided has to
+        # be visible here rather than only in a toast that disappears.
+        if not is_solved(results):
+            st.error(results if results else "No schedule was produced.")
+        elif is_partial(results):
             st.warning(results)
-        elif results == 'Optimal solution found':
-            # st.write(results)
+        else:
+            st.success(results)
+
+        if is_solved(results):
 
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
             results_df.dropna(inplace=True)

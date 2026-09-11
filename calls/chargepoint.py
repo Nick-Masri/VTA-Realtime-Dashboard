@@ -7,6 +7,21 @@ from zeep.helpers import serialize_object
 import pydeck as pdk
 import datetime
 
+from calls import demo_state
+from calls.chargepoint_mock import mock_active_sessions, mock_past_sessions, mock_stations
+
+
+def _credentials_present():
+    try:
+        return bool(st.secrets["CHARGEPOINT_KEY"] and st.secrets["CHARGEPOINT_PASSWD"])
+    except Exception:
+        return False
+
+
+def _demo_notice(operation):
+    del operation
+    demo_state.mark('chargers')
+
 @st.cache_resource
 def chargepoint_client():
     # Import required modules
@@ -45,6 +60,10 @@ def chargepoint_locations():
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=5))
 def chargepoint_active_sessions():
+    if not _credentials_present():
+        _demo_notice('no credentials')
+        return mock_active_sessions()
+
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
     df = pd.DataFrame()
@@ -55,13 +74,9 @@ def chargepoint_active_sessions():
         }
         try:
             data = client.service.getChargingSessionData(queryString)
-        except Exception as e:
-            # st.write(e)
-            st.warning('Error: Chargepoint API Error: getChargingSessionData')
-            return None
-        # code = data['responseCode']
-        # text = data['responseText']
-        # more = data['MoreFlag']
+        except Exception:
+            _demo_notice('getChargingSessionData')
+            return mock_active_sessions()
         charging_data = data['ChargingSessionData']
         charge_data = serialize_object(charging_data)
         charge_df = pd.json_normalize(charge_data)
@@ -86,6 +101,10 @@ def chargepoint_active_sessions():
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
 def chargepoint_past_sessions(start_date, end_date):
+    if not _credentials_present():
+        _demo_notice('no credentials')
+        return mock_past_sessions(start_date, end_date)
+
     (addresses, station_ids) = chargepoint_locations()
     client = chargepoint_client()
     df = pd.DataFrame()
@@ -97,13 +116,9 @@ def chargepoint_past_sessions(start_date, end_date):
         }
         try:
             data = client.service.getChargingSessionData(queryString)
-        except Exception as e:
-            # st.write(e)
-            st.warning('Error: Chargepoint API Error: getChargingSessionData')
-            return None
-        # code = data['responseCode']
-        # text = data['responseText']
-        # more = data['MoreFlag']
+        except Exception:
+            _demo_notice('getChargingSessionData')
+            return mock_past_sessions(start_date, end_date)
         charging_data = data['ChargingSessionData']
         charge_data = serialize_object(charging_data)
         charge_df = pd.json_normalize(charge_data)
@@ -115,16 +130,20 @@ def chargepoint_past_sessions(start_date, end_date):
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(hours=2))
 def chargepoint_stations():
+    if not _credentials_present():
+        _demo_notice('no credentials')
+        return mock_stations()
+
     client = chargepoint_client()
     usageSearchQuery = {
         'stationModel': 'CPE250C-500-CCS1-CHD',
     }
     try:
         response = client.service.getStations(usageSearchQuery)
-    except Exception as e:
-        # st.write(e)
-        st.warning('Error: Chargepoint API Error: getStations')
-        return None
+    except Exception:
+        _demo_notice('getStations')
+        return mock_stations()
+
     
     # st.write(response['stationData'])
     data = serialize_object(response)

@@ -11,15 +11,18 @@ def get_active_blocks():
     swiftly_df = swiftly_active_blocks()
     supabase_df = supabase_blocks()
     tz = pytz.timezone('US/Pacific')
-    if swiftly_df is None and supabase_df is not None:
-        df = supabase_df.copy()
-    elif supabase_df is None and swiftly_df is not None:
-        df = swiftly_df.copy()
-    elif swiftly_df is not None and supabase_df is not None:
+
+    if swiftly_df is not None and supabase_df is not None:
         df = pd.concat([swiftly_df, supabase_df]) \
             .sort_values(['created_at', 'coach'], ascending=False) \
-            .drop_duplicates(subset='coach', keep='first')
-        df = df.copy()
+            .drop_duplicates(subset='coach', keep='first') \
+            .copy()
+    elif swiftly_df is not None:
+        df = swiftly_df.copy()
+    elif supabase_df is not None:
+        df = supabase_df.copy()
+    else:
+        return None
 
     df['predictedArrival'] = pd.to_datetime(df['predictedArrival'], errors='coerce')
     # need this line to remove the current (incorrect) timezone of utc
@@ -33,8 +36,11 @@ def get_active_blocks():
         return None
 
 
-def show_active_blocks(merged_df=get_active_blocks()):
-    if len(merged_df) > 0:
+def show_active_blocks(merged_df=None):
+    if merged_df is None:
+        merged_df = get_active_blocks()
+
+    if merged_df is not None and len(merged_df) > 0:
         st.caption("Predicted Arrival Time from Swiftly")
         # st.write(merged_df)
         # Display the DataFrame
@@ -42,8 +48,9 @@ def show_active_blocks(merged_df=get_active_blocks()):
         # remove timezone again so it displays right
         merged_df['predictedArrival'] = pd.to_datetime(merged_df['predictedArrival']).dt.tz_localize(None)
         merged_df = merged_df.sort_values('transmission_hrs')
-        # none if transmission hrs > 2
-        merged_df['soc'] = merged_df['transmission_hrs'].apply(lambda x: 'N/A' if x > 2 else x)
+        # the reading is only meaningful if the bus transmitted recently
+        merged_df['soc'] = merged_df.apply(
+            lambda row: 'N/A' if row['transmission_hrs'] > 2 else row['soc'], axis=1)
         merged_df = merged_df[
             ['coach', 'id', 'block_id', 'block_startTime', 'predictedArrival', 'soc',
             #  'last_seen'

@@ -1,30 +1,97 @@
 import pickle
-import numpy as np
-from datetime import date
 import warnings
-from scipy.stats import t
-from calls.visual_crossing import get_todays_weather
+from datetime import date
 
+import numpy as np
+import pandas as pd
+import streamlit as st
+from scipy.stats import t
+
+from calls.visual_crossing import get_todays_weather
 
 warnings.filterwarnings("ignore", category=UserWarning)
 
-def predict_consumption(block, coach, miles_travelled, percent):
-    weather_data = get_todays_weather()
+PKL_PATH = './ML_models/mapie_energy_consumption_model.sav'
+ALPHA = 0.01
+DEG_FREE = 8
+
+
+@st.cache_resource
+def load_model():
+    with open(PKL_PATH, 'rb') as handle:
+        return pickle.load(handle)
+
+
+def _features(coach, miles, weather, today):
+    """Feature order the model was trained on. Block id is not an input -
+    a block only enters the model through its mileage."""
+    return [
+        weather['cloudcover'], coach, weather['humidity'], miles,
+        weather['visibility'], weather['winddir'], weather['windspeed'],
+        weather['feelslikemin'], weather['solarradiation'], weather['precipcover'],
+        today.month, today.day,
+    ]
+
+
+def _spread(pred, low, high, percent):
+    """Half-width implied by the conformal interval, on whichever side of the
+    prediction the available charge falls."""
+    if percent > pred:
+        return (high - pred) / t.ppf(1 - ALPHA / 2, DEG_FREE)
+    return (pred - low) / t.ppf(1 - ALPHA / 2, DEG_FREE)
+
+
+def completion_probability(pred, low, high, percent):
+    sd = _spread(pred, low, high, percent)
+    if sd <= 0:
+        return 1.0 if percent >= pred else 0.0
+    return float(t.cdf((percent - pred) / sd, DEG_FREE))
+
+
+def predict_batch(pairs):
+    """Predict energy use for many (coach, miles) pairs in one model call.
+
+    Returns a DataFrame of coach, miles, pred, low, high - all in percent of
+    pack capacity.
+    """
+    pairs = list(pairs)
+    if not pairs:
+        return pd.DataFrame(columns=['coach', 'miles', 'pred', 'low', 'high'])
+
+    weather = get_todays_weather()
     today = date.today()
-    if miles_travelled != '':
-        inputs = np.array([[weather_data['cloudcover'], coach, weather_data['humidity'], miles_travelled, weather_data['visibility'], weather_data['winddir'], weather_data['windspeed'], weather_data['feelslikemin'], weather_data['solarradiation'], weather_data['precipcover'], today.month, today.day]]).astype(np.float32)
-        pkl_path = './ML_models/mapie_energy_consumption_model.sav'
-        model = pickle.load(open(pkl_path, 'rb'))
-        a = 0.01
-        deg_free = 8
-        pred, interval = model.predict(inputs, alpha = a)
-        pred = pred[0]
-        interval = interval[0,:,0]
-        if(percent>pred):
-            sd = (interval[1] - pred)/t.ppf(1-a/2, deg_free)
-        else:
-            sd = (pred - interval[0])/t.ppf(1-a/2, deg_free)
-        prob = t.cdf((percent-pred)/sd, deg_free)
-        return round(pred,1), round(prob,3)
-    else:
+    rows = np.array(
+        [_features(coach, miles, weather, today) for coach, miles in pairs]
+    ).astype(np.float32)
+
+    pred, interval = load_model().predict(rows, alpha=ALPHA)
+
+    return pd.DataFrame({
+        'coach': [c for c, _ in pairs],
+        'miles': [m for _, m in pairs],
+        'pred': pred,
+        'low': interval[:, 0, 0],
+        'high': interval[:, 1, 0],
+    })
+
+
+def predict_detail(coach, miles_travelled, percent):
+    """Single prediction plus the interval, for charting."""
+    if miles_travelled == '' or miles_travelled is None:
+        return None
+
+    row = predict_batch([(coach, miles_travelled)]).iloc[0]
+    return {
+        'pred': float(row['pred']),
+        'low': float(row['low']),
+        'high': float(row['high']),
+        'sd': _spread(row['pred'], row['low'], row['high'], percent),
+        'prob': completion_probability(row['pred'], row['low'], row['high'], percent),
+    }
+
+
+def predict_consumption(block, coach, miles_travelled, percent):
+    detail = predict_detail(coach, miles_travelled, percent)
+    if detail is None:
         return -1, 0
+    return round(detail['pred'], 1), round(detail['prob'], 3)
