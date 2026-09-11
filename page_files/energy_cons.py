@@ -38,11 +38,8 @@ def _live_soc():
 
 
 def _weather_note():
-    if weather_is_estimated():
-        st.caption(
-            ":material/cloud: Live weather unavailable - "
-            "predictions use seasonal averages for Santa Clara."
-        )
+    """Covered by the demonstration banner in main.py."""
+    return
 
 
 def show_energy_cons():
