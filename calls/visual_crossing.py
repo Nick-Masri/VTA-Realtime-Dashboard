@@ -2,6 +2,8 @@ import requests
 import streamlit as st
 import datetime
 
+from calls import demo_state
+
 # Santa Clara monthly normals, metric, used when the weather API is unreachable.
 # Keyed by month -> the fields the consumption model consumes.
 _CLIMATOLOGY = {
@@ -34,6 +36,7 @@ def weather_is_estimated():
 
 def _seasonal_normals():
     _ESTIMATED['value'] = True
+    demo_state.mark('weather')
     return dict(zip(_FIELDS, _CLIMATOLOGY[datetime.date.today().month]))
 
 

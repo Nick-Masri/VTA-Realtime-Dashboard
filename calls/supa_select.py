@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import pytz
 import streamlit as st
 
+from calls import demo_state
 from calls.supabase_mock import (
     mock_active_location, mock_blocks, mock_soc, mock_soc_history,
 )
@@ -45,7 +46,7 @@ def _use_demo(data):
 
 
 def _demo_notice():
-    st.caption("Live feed is stale - showing simulated fleet data.")
+    demo_state.mark('fleet')
 
 
 @st.cache_resource

@@ -7,6 +7,7 @@ from zeep.helpers import serialize_object
 import pydeck as pdk
 import datetime
 
+from calls import demo_state
 from calls.chargepoint_mock import mock_active_sessions, mock_past_sessions, mock_stations
 
 
@@ -18,7 +19,8 @@ def _credentials_present():
 
 
 def _demo_notice(operation):
-    st.caption(f"ChargePoint unavailable ({operation}) - showing simulated charger data.")
+    del operation
+    demo_state.mark('chargers')
 
 @st.cache_resource
 def chargepoint_client():
