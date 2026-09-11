@@ -3,6 +3,7 @@ import pandas as pd
 import streamlit as st
 import datetime
 import data
+from calls import demo_state
 
 @st.cache_data(show_spinner=False, ttl=datetime.timedelta(minutes=5))
 def swiftly_call_active_blocks():
@@ -17,7 +18,7 @@ def swiftly_call_active_blocks():
     except (requests.RequestException, ValueError, KeyError, TypeError) as exc:
         # Swiftly is a live third-party feed; a bad response must not take the
         # whole portal down. Callers fall back to the Supabase block history.
-        st.warning(f"Swiftly API unavailable, using stored block history ({exc})")
+        demo_state.note_issue(f"Swiftly API unavailable, using stored block history ({exc})")
         return pd.DataFrame()
 
     return pd.DataFrame(block_data)

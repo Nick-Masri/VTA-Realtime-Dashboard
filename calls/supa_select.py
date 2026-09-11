@@ -66,7 +66,7 @@ def _fetch(build_query):
     try:
         return build_query(setup_client()).execute().data
     except Exception as exc:
-        st.warning(f"Supabase unavailable ({exc})")
+        demo_state.note_issue(f"Supabase unavailable ({exc})")
         return None
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
