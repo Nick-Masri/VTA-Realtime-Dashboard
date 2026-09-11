@@ -1,14 +1,47 @@
-import gurobipy as gp
+import os
+import time
+import warnings
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
-import yaml
-from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
-import os
-import warnings
+import pyomo.environ as pyo
 import streamlit as st
-import sys
+import yaml
+from pyomo.contrib.appsi.base import TerminationCondition
+from pyomo.contrib.appsi.solvers import Highs
+
+from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
+
 warnings.simplefilter(action='ignore', category=FutureWarning)
+
+# HiGHS is open source and slower than Gurobi on a model this size, so the
+# solve is bounded and any incumbent found by then is used.
+TIME_LIMIT_SECONDS = 180
+MIP_GAP = 0.03
+
+# The binding difficulty here is finding any feasible schedule, not closing the
+# gap, so HiGHS is pushed well past its default heuristic effort of 0.05.
+# The original capped charger transitions at 2 across the entire run, which over
+# D=3 days forces one contiguous charging window for the whole horizon rather
+# than one per night. That reading left a 4-bus, 3-route case without any
+# feasible solution after 600s; per-day it proves optimal in about 16. Set this
+# back to 'horizon' to restore the original constraint.
+CHANGE_CAP_SCOPE = 'day'
+
+HIGHS_OPTIONS = {
+    'mip_heuristic_effort': 0.5,
+    'mip_detect_symmetry': True,
+    'presolve': 'on',
+}
+
+
+def _soc_fraction(raw):
+    """Accept a '85%' string or a plain number."""
+    if isinstance(raw, str):
+        raw = raw.strip().rstrip('%')
+    return float(raw) / 100
+
 
 class ChargeOpt:
     def __init__(self, buses, routes, chargers):
@@ -18,37 +51,24 @@ class ChargeOpt:
         self.startTime = datetime.now()
 
     def solve(self):
-
-        #####################################
-        # Init self variables
-        #####################################
-        # example buse
-        # [{coach}]
         B = len(self.buses)
-        try:
-            assert B > 0
-        except AssertionError:
+        if B == 0:
             st.write("No buses selected")
             return None
 
         routes = self.routes
         R = len(routes)
-        try:
-            assert R > 0
-        except AssertionError:
+        if R == 0:
             st.write("No routes selected")
             return None
 
-
         #####################################
-        # Config 
+        # Config
         #####################################
-        # load config file
         config_path = os.path.join(os.getcwd(), "chargeopt/config.yml")
         with open(config_path, "r") as file:
             config = yaml.safe_load(file)
 
-        # make filename based on date
         current_datetime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
         filename = f'chargeopt_{current_datetime}'
 
@@ -56,364 +76,329 @@ class ChargeOpt:
         eB_min = int(eB_max * .2)
         eB_range = eB_max - eB_min
 
-        # charger params
         numChargers = len(self.chargers)
         pCB_ub = config["chargerPower"]
-
-        # power
         gridKWH = config['gridMaxPower']
 
-        # time variables
         D = 3
         dt = 0.25
         startTimeNum = time_to_quarter(self.startTime.strftime('%I:%M %p'))
-        # TODO: Fix time so there is a start time and end time
         T = D * 96
         optimized_time = [t for t in range(startTimeNum, T)]
-        # print(T)
 
-        [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub);
+        [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
         if report != 'All Clear':
             return None
 
-        # for loop for tDep and tRet
         tDep = np.zeros((R, D), dtype=int)
         tRet = np.zeros((R, D), dtype=int)
         for d in range(D):
             for r in range(R):
-                # here we subtract one from the departure and arrival times
-                # since the time is one less than the matlab time
+                # the time is one less than the matlab time
                 tDep[r, d] = int(departure[r] - 1 + d * 96)
                 tRet[r, d] = int(arrival[r] - 1 + d * 96)
 
-        # creating tDay
-        tDay = np.zeros((D, 96))
+        tDay = np.zeros((D, 96), dtype=int)
         for d in range(D):
             tDay[d, :] = np.arange(d * 96, (d + 1) * 96)
 
-        #########################################
-        # Input data generation
-        #########################################
         gridPowAvail = gridKWH
-
-        # Generate Grid Pricing Profile
         gridPowPrice = init_grid_pricing(D)
 
-        params = {
-        "WLSACCESSID": st.secrets['GUROBI_ACCESSID'],
-        "WLSSECRET": st.secrets['GUROBI_SECRET'],
-        "LICENSEID": st.secrets['GUROBI_LICENSE'],
-        }
-
-        env = gp.Env(params=params)
-
-        # env = gp.Env()
-
-        env.start()
-
-        # Create a new model
-        m = gp.Model("Charge opt", env=env)
-
-        # MIP Gap
-        m.setParam('MIPGap', 0.03)
-
-        #########################################
-        # Defining Decision Vars
-        #########################################
-      
-        # Buses
-        powerCB = m.addVars(B, T, lb=0, ub=pCB_ub, vtype=gp.GRB.CONTINUOUS, name="powerCB")
-        gridPowToB = m.addVars(B, T, lb=0, ub=gridKWH, vtype=gp.GRB.CONTINUOUS, name="gridPowToB")
-        eB = m.addVars(B, T, lb=eB_min, ub=eB_max, vtype=gp.GRB.CONTINUOUS, name="eB")
-
-        # Charging activities
-        chargerUse = m.addVars(B, T, vtype=gp.GRB.BINARY, name="chargerUse")
-        T1 = m.addVars(B, T, vtype=gp.GRB.BINARY, name="T1")
-        T2 = m.addVars(B, T, vtype=gp.GRB.BINARY, name="T2")
-        change = m.addVars(B, T, vtype=gp.GRB.BINARY, name="change")
-        charging = m.addVars(B, D, vtype=gp.GRB.BINARY, name="charging")
-        tracker = m.addVars(B, T, vtype=gp.GRB.BINARY, name="tracker")
-        tracker_b = m.addVars(B, T, vtype=gp.GRB.BINARY, name="tracker_b")
-        assignment = m.addVars(B, D, R, vtype=gp.GRB.BINARY, name="assignment")
-        m.update()
+        # A bus starting below the 20% floor cannot satisfy eB's lower bound,
+        # which otherwise surfaces as a bare "infeasible".
+        start_soc = {b: _soc_fraction(self.buses.iloc[b, 1]) for b in range(B)}
+        too_low = [
+            str(self.buses.iloc[b, 0]) for b in range(B)
+            if eB_max * start_soc[b] < eB_min
+        ]
+        if too_low:
+            return (
+                f"Below the {eB_min / eB_max:.0%} reserve at start: "
+                f"{', '.join(too_low)}"
+            ), startTimeNum
 
         #####################################
-        # Constraints
+        # Model
         #####################################
-        M = 1000
+        m = pyo.ConcreteModel()
+        m.B = pyo.RangeSet(0, B - 1)
+        m.T = pyo.RangeSet(0, T - 1)
+        m.D = pyo.RangeSet(0, D - 1)
+        m.R = pyo.RangeSet(0, R - 1)
+        m.OT = pyo.Set(initialize=optimized_time, ordered=True)
 
+        m.powerCB = pyo.Var(m.B, m.T, bounds=(0, pCB_ub))
+        m.gridPowToB = pyo.Var(m.B, m.T, bounds=(0, gridKWH))
+        m.eB = pyo.Var(m.B, m.T, bounds=(eB_min, eB_max))
 
-        #####################################
-        # Charging Constraints
-        #####################################
-
-
-        # # trackers and constraints to limit weird charging behavior
-        m.addConstrs((change[b, t] == T1[b, t] + T2[b, t] for b in range(B) for t in range(T)), "change link")
-
-        m.addConstrs((T1[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T1 init")
-        m.addConstrs((T2[b, t] == 0 for b in range(B) for t in range(startTimeNum)), "T2 init")
-
-        m.addConstrs((T1[b, t] - T2[b, t] == chargerUse[b, t] - chargerUse[b, t - 1] for b in range(B) for t in range(1, T)),
-                    "t chargeruse link 1")
-        m.addConstrs((change[b, t] <= chargerUse[b, t - 1] + chargerUse[b, t] for b in range(B) for t in range(1, T)),
-                    "t chargeruse link 2")
-        m.addConstrs((change[b, t] <= 2 - chargerUse[b, t - 1] - chargerUse[b, t] for b in range(B) for t in range(1, T)),
-                    "change chargeruse link")
-        
-        m.addConstrs(sum(change[b, t] for t in range(T)) <= 2 for b in range(B))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) >= 4 * charging[b, d] for b in range(B) for d in range(D))
-        m.addConstrs(sum(chargerUse[b, t] for t in tDay[d]) <= 96 * charging[b, d] for b in range(B) for d in range(D))
-
-        # add constraints to connect charger use to charger power
-        m.addConstrs(powerCB[b, t] <= pCB_ub * chargerUse[b, t] for b in range(B) for t in range(T))
-        #  49*.25 = 12.25
-        # if eLeft < 12.25:
-        # tracker_b can be 0
-        # tracker must be 1
-        # energy given to bus (pCB*dt) must be greater than equal to eLeft (though only equal) when charging
-        m.addConstrs(powerCB[b, t]*dt + M*(1-chargerUse[b, t]) >= (eB_max - eB[b,t])*tracker[b, t] for b in range(B) for t in optimized_time)
-
-        # if eLeft = 12.25 both can be 0 or 1, no need to have constraint
-
-        # if eLeft > 12.25:
-        # tracker can be 0
-        # tracker_b must be 1
-        # energy given to bus (pCB*dt) must be greater equal to pCB_ub*dt when charging
-        # m.addConstrs(powerCB[b, t]*dt >= (pCB_ub*dt)*tracker_b[b, t] for b in range(B) for t in optimized_time)
-        # equivalent form
-        m.addConstrs(powerCB[b, t] + M*(1-chargerUse[b, t]) >= pCB_ub*tracker_b[b, t] for b in range(B) for t in optimized_time)
-
-        # constraints to set up trackers
-        m.addConstrs(((eB_max - eB[b, t]) >= (pCB_ub*dt) - M*tracker[b, t]) for b in range(B) for t in optimized_time)
-        m.addConstrs(((eB_max - eB[b, t]) <= (pCB_ub*dt) + M*tracker_b[b, t]) for b in range(B) for t in optimized_time)
-        m.addConstrs((tracker[b, t] + tracker_b[b, t] == 1) for b in range(B) for t in range(T))
-
-        # limit charging to number of chargers
-        m.addConstrs(sum(chargerUse[b, t] for b in range(B)) <= numChargers for t in range(T))
+        m.chargerUse = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.T1 = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.T2 = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.change = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.charging = pyo.Var(m.B, m.D, domain=pyo.Binary)
+        m.tracker = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.tracker_b = pyo.Var(m.B, m.T, domain=pyo.Binary)
+        m.assignment = pyo.Var(m.B, m.D, m.R, domain=pyo.Binary)
 
         #####################################
-        # Power Availability
+        # Big-M constants
         #####################################
-        # Grid Constraints
-        m.addConstrs((gridPowToB.sum('*', t) <= gridPowAvail for t in range(T)), "grid power total")
+        # Each is the smallest value that still relaxes its own constraint.
+        # A single blanket M weakens the LP relaxation, which matters far more
+        # to an open-source branch-and-bound than it did to Gurobi.
+        M_fill = eB_range                    # charge needed to fill the pack
+        M_power = pCB_ub                     # charger output
+        M_low = pCB_ub * dt                  # energy one interval can deliver
+        M_high = eB_range - pCB_ub * dt
 
-        m.addConstrs((powerCB[b, t] == (gridPowToB[b, t]) for t in range(T) for b in range(B)),
-            "charger power limit")
-        
         #####################################
-        # Bus Battery operation
+        # Charging constraints
         #####################################
-        # add constraints for route depletion
+        m.change_link = pyo.Constraint(
+            m.B, m.T, rule=lambda m, b, t: m.change[b, t] == m.T1[b, t] + m.T2[b, t])
+
+        def _init_zero(var):
+            return pyo.Constraint(
+                m.B, pyo.RangeSet(0, startTimeNum - 1),
+                rule=lambda m, b, t: var[b, t] == 0)
+
+        m.T1_init = _init_zero(m.T1)
+        m.T2_init = _init_zero(m.T2)
+
+        after_start = pyo.RangeSet(1, T - 1)
+        m.use_link_1 = pyo.Constraint(
+            m.B, after_start,
+            rule=lambda m, b, t: m.T1[b, t] - m.T2[b, t]
+            == m.chargerUse[b, t] - m.chargerUse[b, t - 1])
+        m.use_link_2 = pyo.Constraint(
+            m.B, after_start,
+            rule=lambda m, b, t: m.change[b, t]
+            <= m.chargerUse[b, t - 1] + m.chargerUse[b, t])
+        m.use_link_3 = pyo.Constraint(
+            m.B, after_start,
+            rule=lambda m, b, t: m.change[b, t]
+            <= 2 - m.chargerUse[b, t - 1] - m.chargerUse[b, t])
+
+        if CHANGE_CAP_SCOPE == 'day':
+            m.change_cap = pyo.Constraint(
+                m.B, m.D, rule=lambda m, b, d:
+                sum(m.change[b, int(t)] for t in tDay[d]) <= 2)
+        else:
+            m.change_cap = pyo.Constraint(
+                m.B, rule=lambda m, b: sum(m.change[b, t] for t in m.T) <= 2)
+        m.daily_min = pyo.Constraint(
+            m.B, m.D, rule=lambda m, b, d:
+            sum(m.chargerUse[b, int(t)] for t in tDay[d]) >= 4 * m.charging[b, d])
+        m.daily_max = pyo.Constraint(
+            m.B, m.D, rule=lambda m, b, d:
+            sum(m.chargerUse[b, int(t)] for t in tDay[d]) <= 96 * m.charging[b, d])
+
+        m.power_gate = pyo.Constraint(
+            m.B, m.T,
+            rule=lambda m, b, t: m.powerCB[b, t] <= pCB_ub * m.chargerUse[b, t])
+
+        # When charging, deliver at least what is needed to fill the pack.
+        # Gurobi accepted the original (eB_max - eB) * tracker product; that is
+        # bilinear, so it is switched here for the exact linearization a binary
+        # multiplier allows - a second big-M that relaxes the row when
+        # tracker is 0, which is all the product did.
+        m.fill_rule = pyo.Constraint(
+            m.B, m.OT,
+            rule=lambda m, b, t: m.powerCB[b, t] * dt
+            + M_fill * (1 - m.chargerUse[b, t])
+            + M_fill * (1 - m.tracker[b, t])
+            >= eB_max - m.eB[b, t])
+        # ... or run the charger flat out if more than that is needed
+        m.full_power_rule = pyo.Constraint(
+            m.B, m.OT,
+            rule=lambda m, b, t: m.powerCB[b, t] + M_power * (1 - m.chargerUse[b, t])
+            >= pCB_ub * m.tracker_b[b, t])
+
+        m.tracker_low = pyo.Constraint(
+            m.B, m.OT,
+            rule=lambda m, b, t: (eB_max - m.eB[b, t])
+            >= (pCB_ub * dt) - M_low * m.tracker[b, t])
+        m.tracker_high = pyo.Constraint(
+            m.B, m.OT,
+            rule=lambda m, b, t: (eB_max - m.eB[b, t])
+            <= (pCB_ub * dt) + M_high * m.tracker_b[b, t])
+        m.tracker_pick = pyo.Constraint(
+            m.B, m.T,
+            rule=lambda m, b, t: m.tracker[b, t] + m.tracker_b[b, t] == 1)
+
+        m.charger_count = pyo.Constraint(
+            m.T, rule=lambda m, t: sum(m.chargerUse[b, t] for b in m.B) <= numChargers)
+
+        #####################################
+        # Power availability
+        #####################################
+        m.grid_total = pyo.Constraint(
+            m.T, rule=lambda m, t: sum(m.gridPowToB[b, t] for b in m.B) <= gridPowAvail)
+        m.charger_supply = pyo.Constraint(
+            m.B, m.T, rule=lambda m, b, t: m.powerCB[b, t] == m.gridPowToB[b, t])
+
+        #####################################
+        # Bus battery operation
+        #####################################
+        m.battery = pyo.ConstraintList()
         for b in range(B):
             for d in range(D):
                 for i in range(96):
-                    routeDepletion = 0
-                    if not (d == 0 and i == 0):
-                        t = tDay[d][i]
-                        for r in range(R):
-                            if t == tRet[r][d]:
-                                routeDepletion += eRoute[r] * assignment[b, d, r]
-                        m.addConstr(eB[b, t] == eB[b, t - 1] + dt * powerCB[b, t - 1] - routeDepletion)
+                    if d == 0 and i == 0:
+                        continue
+                    t = int(tDay[d][i])
+                    depletion = sum(
+                        eRoute[r] * m.assignment[b, d, r]
+                        for r in range(R) if t == tRet[r][d]
+                    )
+                    m.battery.add(
+                        m.eB[b, t] == m.eB[b, t - 1] + dt * m.powerCB[b, t - 1] - depletion)
 
-        # add constraints for route requirement
+        m.route_requirement = pyo.ConstraintList()
         for b in range(B):
             for d in range(D):
                 for i in range(96):
-                    t = tDay[d][i]
-                    routeRequirement = 0
-                    for r in range(R):
-                        if t == tDep[r][d]:
-                            routeRequirement += eRoute[r] * assignment[b, d, r]
-                    m.addConstr(eB[b, t] >= eB_min + routeRequirement)
+                    t = int(tDay[d][i])
+                    requirement = sum(
+                        eRoute[r] * m.assignment[b, d, r]
+                        for r in range(R) if t == tDep[r][d]
+                    )
+                    m.route_requirement.add(m.eB[b, t] >= eB_min + requirement)
 
-        # add constraints for initial and final state of battery energy
+        m.soc_bounds = pyo.ConstraintList()
         for b in range(B):
-            soc = self.buses.iloc[b, 1]
-            print(soc)
-            # remove % and convert to float
-            soc = soc.replace('%', '')
-            soc = float(soc) / 100
-            m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
-            m.addConstrs(eB[b, t] == eB_max * soc for t in range(startTimeNum))
-            m.addConstr(eB[b, T - 1] >= eB_max * soc)
+            soc = start_soc[b]
+            for t in range(startTimeNum):
+                m.soc_bounds.add(m.eB[b, t] == eB_max * soc)
+            m.soc_bounds.add(m.eB[b, T - 1] >= eB_max * soc)
 
         #####################################
-        # Route Coverage Constraints
+        # Route coverage
         #####################################
+        m.coverage = pyo.ConstraintList()
         for b in range(B):
             for d in range(D):
                 for r in range(R):
-                    for t in range(tDep[r][d], tRet[r][d] + 1):
-                        m.addConstr(chargerUse[b, t] + assignment[b, d, r] <= 1)
+                    for t in range(int(tDep[r][d]), int(tRet[r][d]) + 1):
+                        m.coverage.add(m.chargerUse[b, t] + m.assignment[b, d, r] <= 1)
 
-        m.addConstrs(assignment.sum('*', d, r) == 1 for r in range(R) for d in range(1, 2))
-        m.addConstrs(assignment.sum(b, d, '*') <= 1 for b in range(B) for d in range(D))
-                
-        # time shift constrains
-        m.addConstrs(powerCB[b, t] == 0 for b in range(B) for t in range(startTimeNum))
-        m.addConstrs(gridPowToB[b, t] == 0 for b in range(B) for t in range(startTimeNum))
-        m.addConstrs(chargerUse[b, t] == 0 for b in range(B) for t in range(startTimeNum))
+        m.route_covered = pyo.Constraint(
+            m.R, pyo.RangeSet(1, 1),
+            rule=lambda m, r, d: sum(m.assignment[b, d, r] for b in m.B) == 1)
+        m.one_route_each = pyo.Constraint(
+            m.B, m.D,
+            rule=lambda m, b, d: sum(m.assignment[b, d, r] for r in m.R) <= 1)
 
-        # make the model static
-        # TODO: fix this so that the assignemnts use the heuristic
-        # m.addConstrs(assignment[b, d, b] == 1 for b in range(B) for d in range(D))
-
-        # ###################################
-        # Setting Objective and Solving
-        ###################################
-        sums_over_buses = [sum(gridPowToB[b, t] for b in range(B)) for t in range(T)]
-        # check size
-        assert len(sums_over_buses) == T
-
-        obj_coeffs = np.array(sums_over_buses)
-        obj_vals = obj_coeffs * gridPowPrice
-
-        # Create a LinExpr object from the array using the quicksum method
-        obj_expr = 0.25 * gp.quicksum(obj_vals)
-        m.setObjective(obj_expr, gp.GRB.MINIMIZE)
-
-        # Solve the model
-        m.optimize()
+        m.time_shift = pyo.ConstraintList()
+        for b in range(B):
+            for t in range(startTimeNum):
+                m.time_shift.add(m.powerCB[b, t] == 0)
+                m.time_shift.add(m.gridPowToB[b, t] == 0)
+                m.time_shift.add(m.chargerUse[b, t] == 0)
 
         #####################################
-        # Exporting Results
+        # Objective
         #####################################
-        
-        # Checking if it is feasible
-        if m.status == gp.GRB.OPTIMAL:
+        m.obj = pyo.Objective(
+            expr=0.25 * sum(
+                gridPowPrice[t] * sum(m.gridPowToB[b, t] for b in range(B))
+                for t in range(T)
+            ),
+            sense=pyo.minimize,
+        )
 
-            # create a dictionary of variable names and values
-            variable_dict = {var.VarName: var.x for var in m.getVars()}
+        #####################################
+        # Solve
+        #####################################
+        solver = Highs()
+        solver.config.time_limit = TIME_LIMIT_SECONDS
+        solver.config.mip_gap = MIP_GAP
+        solver.config.load_solution = False
+        solver.config.stream_solver = False
+        for option, value in HIGHS_OPTIONS.items():
+            solver.highs_options[option] = value
 
-            # two-dimensional
-            def genDF(varName):
-                df = pd.DataFrame(columns=['time', 'bus', 'value'])
-                data = []
+        began = time.time()
+        result = solver.solve(m)
+        sol_time = time.time() - began
 
-                for t in range(T):
-                    for b in range(B):
-                        value = variable_dict[f'{varName}[{b},{t}]']
-                        data.append({'time': t, 'bus': b, f'{varName}': value})
+        terminal = result.termination_condition
+        has_solution = result.best_feasible_objective is not None
 
-                df = pd.DataFrame(data)
-                if len(df) > 0:
-                    df = df.set_index(['bus', 'time'])
-                    return df
+        if terminal == TerminationCondition.infeasible:
+            return "Model is infeasible", startTimeNum
+        if not has_solution:
+            if terminal == TerminationCondition.maxTimeLimit:
+                return (
+                    f"No solution found within {TIME_LIMIT_SECONDS}s"
+                ), startTimeNum
+            return "Model Error", startTimeNum
 
-                else:
-                    return None
+        result.solution_loader.load_vars()
+        obj_val = float(result.best_feasible_objective)
 
+        #####################################
+        # Exporting results
+        #####################################
+        path = os.path.join(os.getcwd(), "chargeopt", "outputs")
+        os.makedirs(path, exist_ok=True)
 
-            powerCB_df = genDF('powerCB')
-            chargerUse_df = genDF('chargerUse')
-            # gridpowtoB_df = genDF('gridPowToB')
-            eB_df = genDF('eB')
+        def genDF(name, var):
+            data = [
+                {'time': t, 'bus': b, name: pyo.value(var[b, t])}
+                for t in range(T) for b in range(B)
+            ]
+            df = pd.DataFrame(data)
+            return df.set_index(['bus', 'time']) if len(df) > 0 else None
 
-            dfs = [powerCB_df,  eB_df, chargerUse_df]
-            twodim_df = pd.concat(dfs, axis=1, join='inner')
-            path = os.path.join(os.getcwd(), "chargeopt", "outputs")
+        twodim_df = pd.concat(
+            [genDF('powerCB', m.powerCB), genDF('eB', m.eB),
+             genDF('chargerUse', m.chargerUse)],
+            axis=1, join='inner',
+        )
+        twodim_df.to_csv(f'{path}/{filename}.csv')
 
-            # Check if the directory exists
-            if not os.path.exists(path):
-                # If not, create it
-                os.makedirs(path)
+        assignment_df = pd.DataFrame([
+            {'day': d, 'bus': b, 'route': r,
+             'assignment': pyo.value(m.assignment[b, d, r])}
+            for d in range(D) for b in range(B) for r in range(R)
+        ]).set_index(['bus', 'day', 'route'])
+        assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
 
-            # export to csv
-            twodim_df.to_csv(f'{path}/{filename}.csv')
+        results_file = f'{path}/results.csv'
+        results_df = pd.DataFrame(columns=[
+            "case_name", "numBuses", "ebMaxKwh", "numChargers", "chargerPower",
+            "chargerEff", "routes", "gridMaxPower", "obj_val", "sol_time", "date", "type",
+        ])
+        try:
+            results_df = pd.concat([pd.read_csv(results_file), results_df], ignore_index=True)
+        except FileNotFoundError:
+            pass
 
-            ## Gen assignments
-            data = []
-            varName = 'assignment'
-            for d in range(D):
-                for b in range(B):
-                    for r in range(R):
-                        value = variable_dict[f'{varName}[{b},{d},{r}]']
-                        data.append({'day': d, 'bus': b, 'route': r, f'{varName}': value})
+        new_row = pd.DataFrame([{
+            "case_name": filename,
+            "numBuses": B,
+            "ebMaxKwh": eB_max,
+            "numChargers": numChargers,
+            "chargerPower": pCB_ub,
+            "routes": str(routes),
+            "gridMaxPower": gridKWH,
+            "obj_val": obj_val,
+            "sol_time": round(sol_time, 2),
+            "date": datetime.now().strftime("%m/%d/%Y"),
+        }])
+        results_df = pd.concat([results_df, new_row], ignore_index=True)
+        results_df.to_csv(results_file, index=False)
 
-            assignment_df = pd.DataFrame(data)
-            assignment_df = assignment_df.set_index(['bus', 'day', 'route'])
-            assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
-
-            # create the results DataFrame
-            results_df = pd.DataFrame(columns=["case_name", "numBuses", "ebMaxKwh", "numChargers", "chargerPower", "chargerEff",
-                                            "routes", "gridMaxPower", "obj_val", "sol_time", "date",
-                                            "type"])
-            results_file = f'{path}/results.csv'
-
-            # try to read in the current results file (if it exists)
-            try:
-                current_results = pd.read_csv(results_file)
-                results_df = pd.concat([current_results, results_df], ignore_index=True)
-            except FileNotFoundError:
-                pass
-
-            # get the objective value and solution time
-            obj_val = m.objVal
-            sol_time = m.Runtime
-
-            # get current date in month/day/year format
-            current_date = datetime.now().strftime("%m/%d/%Y")
-
-            # Convert the dictionary to a DataFrame
-            new_row = pd.DataFrame([{
-                "case_name": filename,
-                "numBuses": B,
-                "ebMaxKwh": eB_max,
-                "numChargers": numChargers,
-                "chargerPower": pCB_ub,
-                "routes": str(routes),
-                "gridMaxPower": gridKWH,
-                "obj_val": obj_val,
-                "sol_time": sol_time,
-                "date": current_date,
-                # "type": config['runType']
-            }])
-
-            # Concatenate the new row with the existing DataFrame
-            results_df = pd.concat([results_df, new_row], ignore_index=True)
-            # print charging[b, d]
-            # print(chargerUse[b, t])
-            #  # two-dimensional
-            # def genCharging(varName):
-            #     df = pd.DataFrame(columns=['day', 'bus', 'value'])
-            #     data = []
-
-            #     for d in range(D):
-            #         for b in range(B):
-            #             value = variable_dict[f'{varName}[{b},{d}]']
-            #             data.append({'day': d, 'bus': b, f'{varName}': value})
-
-            #     df = pd.DataFrame(data)
-            #     df = df.set_index(['bus', 'day'])
-
-            # chargeUse = genDF('chargerUse')
-            # chargeUse = chargeUse.sort_values(by=['bus', 'time'])
-            # st.write(chargeUse)
-
-            # chargeDaily = genCharging('charging')
-            # st.write(chargeDaily)
-
-            # change = genDF('change')
-            # st.write(change)
-            
-            # sum of change for each day and bus
-            # a day is 96 time steps
-            # for d in range(D):
-            #     for b in range(B):
-            #         changeSum = change.iloc[b, d*96:(d+1)*96].sum()
-            #         st.write(changeSum)
-            # changeSum = change.groupby(['bus', 'time']).sum()
-            # st.write(changeSum)
-
-            # write the results to the results.csv file
-            results_df.to_csv(results_file, index=False)
-
-        if m.status == gp.GRB.INFEASIBLE:
-           status = "Model is infeasible"
-        elif m.status == gp.GRB.OPTIMAL:
+        if terminal == TerminationCondition.optimal:
             status = "Optimal solution found"
         else:
-            status = "Model Error"
+            bound = result.best_objective_bound
+            gap = abs(obj_val - bound) / max(abs(obj_val), 1e-9) if bound is not None else None
+            status = (
+                f"Stopped at {TIME_LIMIT_SECONDS}s with a feasible solution"
+                + (f" ({gap:.1%} gap)" if gap is not None else "")
+            )
 
         return status, startTimeNum

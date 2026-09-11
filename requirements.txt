@@ -20,7 +20,8 @@ zeep
 pytz
 # optimization
 pyyaml
-gurobipy
+pyomo>=6.7
+highspy
 # consumption model
 # pinned: ML_models/mapie_energy_consumption_model.sav was pickled with sklearn 1.2.2
 mapie==0.7.0
