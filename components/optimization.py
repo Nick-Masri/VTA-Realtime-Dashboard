@@ -17,6 +17,13 @@ STATE_ORDER = ['Driving', 'Plugged in', 'Unplugged']
 STATE_COLORS = ['#3F51B5', '#009688', '#CFD8DC']
 
 
+def _as_quarter(value):
+    """Block times reach here either as a clock string or as a quarter index."""
+    if isinstance(value, str):
+        return time_to_quarter(value)
+    return int(value)
+
+
 def _label_states(twodim_df, assignment_df, selected_blocks, coach_of):
     """One row per bus per quarter hour, labelled with what the bus is doing.
 
@@ -32,8 +39,8 @@ def _label_states(twodim_df, assignment_df, selected_blocks, coach_of):
             continue
         block = blocks.iloc[int(row['route'])]
         day = int(row['day'])
-        depart = time_to_quarter(block['block_startTime']) - 1 + day * 96
-        ret = time_to_quarter(block['block_endTime']) - 1 + day * 96
+        depart = _as_quarter(block['block_startTime']) - 1 + day * 96
+        ret = _as_quarter(block['block_endTime']) - 1 + day * 96
         on_block = (states['bus'] == row['bus']) & states['time'].between(depart, ret)
         states.loc[on_block, 'state'] = 'Driving'
 
@@ -71,10 +78,14 @@ def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
     spans = _compress(states, origin)
 
     order = sorted(spans['coach'].unique())
-    timeline = alt.Chart(spans).mark_bar(height=16).encode(
-        x=alt.X('from:T', title=None, axis=alt.Axis(format='%a %-I%p')),
+    timeline = alt.Chart(spans).mark_bar(height=18).encode(
+        x=alt.X('from:T', title=None,
+                axis=alt.Axis(format='%a %-I%p', tickCount=8)),
         x2='to:T',
-        y=alt.Y('coach:N', title=None, sort=order),
+        # Every coach gets a label: thinning them defeats the point of a
+        # per-bus timeline.
+        y=alt.Y('coach:N', title=None, sort=order,
+                axis=alt.Axis(labelOverlap=False, labelPadding=6)),
         color=alt.Color('state:N', title=None,
                         scale=alt.Scale(domain=STATE_ORDER, range=STATE_COLORS),
                         legend=alt.Legend(orient='top')),
@@ -82,7 +93,7 @@ def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
                  alt.Tooltip('state:N', title='Doing'),
                  alt.Tooltip('from:T', title='From', format='%a %-I:%M%p'),
                  alt.Tooltip('to:T', title='To', format='%a %-I:%M%p')],
-    ).properties(height=max(160, 26 * len(order)))
+    ).properties(height=max(200, 32 * len(order)))
 
     with st.container(border=True):
         st.markdown("**Where every bus is, hour by hour**")
@@ -95,7 +106,8 @@ def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
     charge['at'] = origin + pd.to_timedelta(charge['time'] * 15, unit='m')
 
     soc_chart = alt.Chart(charge).mark_line(strokeWidth=1.6).encode(
-        x=alt.X('at:T', title=None, axis=alt.Axis(format='%a %-I%p')),
+        x=alt.X('at:T', title=None,
+                axis=alt.Axis(format='%a %-I%p', tickCount=8)),
         y=alt.Y('soc:Q', title='State of charge (%)', scale=alt.Scale(domain=[0, 100])),
         color=alt.Color('coach:N', title='Coach'),
         tooltip=[alt.Tooltip('coach:N', title='Coach'),
@@ -275,7 +287,11 @@ def opt_form():
             selected_blocks['block_id'] = selected_blocks['block_id'].astype(str)
             selected_chargers = selected_chargers[['stationName']]
 
-            opt = ChargeOpt(selected_buses, selected_blocks, selected_chargers)
+            # init_routes rewrites the frame it is given, turning the block
+            # clock times into quarter indices, so the display copies keep
+            # their own.
+            opt = ChargeOpt(selected_buses.copy(), selected_blocks.copy(),
+                            selected_chargers.copy())
 
             results, startTimeNum = opt.solve()
 
