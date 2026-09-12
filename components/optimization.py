@@ -6,11 +6,112 @@ from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
 from chargeopt.optimization import ChargeOpt, is_partial, is_solved
+from chargeopt.helpers import time_to_quarter
 import os
-import plotly.graph_objects as go
 
 import altair as alt
 import numpy as np
+
+# What a bus is doing at each quarter hour of the plan.
+STATE_ORDER = ['Driving', 'Plugged in', 'Unplugged']
+STATE_COLORS = ['#3F51B5', '#009688', '#CFD8DC']
+
+
+def _label_states(twodim_df, assignment_df, selected_blocks, coach_of):
+    """One row per bus per quarter hour, labelled with what the bus is doing.
+
+    chargerUse tells us when a bus is drawing power; the assignments tell us
+    when it is out on a block. Everything else is parked and unplugged.
+    """
+    states = twodim_df[['bus', 'time', 'chargerUse']].copy()
+    states['state'] = np.where(states['chargerUse'] > 0.5, 'Plugged in', 'Unplugged')
+
+    blocks = selected_blocks.reset_index(drop=True)
+    for _, row in assignment_df[assignment_df['assignment'] == 1].iterrows():
+        if int(row['route']) >= len(blocks):
+            continue
+        block = blocks.iloc[int(row['route'])]
+        day = int(row['day'])
+        depart = time_to_quarter(block['block_startTime']) - 1 + day * 96
+        ret = time_to_quarter(block['block_endTime']) - 1 + day * 96
+        on_block = (states['bus'] == row['bus']) & states['time'].between(depart, ret)
+        states.loc[on_block, 'state'] = 'Driving'
+
+    states['coach'] = states['bus'].map(coach_of)
+    return states
+
+
+def _compress(states, origin):
+    """Collapse runs of the same state into intervals.
+
+    A rect per quarter hour would be a few thousand marks for no benefit; the
+    schedule is a handful of stretches per bus.
+    """
+    spans = []
+    for coach, frame in states.sort_values('time').groupby('coach'):
+        rows = frame[['time', 'state']].to_numpy()
+        run_start, run_state = rows[0]
+        previous = rows[0][0]
+        for moment, state in rows[1:]:
+            if state != run_state or moment != previous + 1:
+                spans.append((coach, run_start, previous + 1, run_state))
+                run_start, run_state = moment, state
+            previous = moment
+        spans.append((coach, run_start, previous + 1, run_state))
+
+    span_df = pd.DataFrame(spans, columns=['coach', 'start', 'end', 'state'])
+    span_df['from'] = origin + pd.to_timedelta(span_df['start'] * 15, unit='m')
+    span_df['to'] = origin + pd.to_timedelta(span_df['end'] * 15, unit='m')
+    return span_df
+
+
+def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
+    origin = pd.Timestamp.today().normalize()
+    states = _label_states(twodim_df, assignment_df, selected_blocks, coach_of)
+    spans = _compress(states, origin)
+
+    order = sorted(spans['coach'].unique())
+    timeline = alt.Chart(spans).mark_bar(height=16).encode(
+        x=alt.X('from:T', title=None, axis=alt.Axis(format='%a %-I%p')),
+        x2='to:T',
+        y=alt.Y('coach:N', title=None, sort=order),
+        color=alt.Color('state:N', title=None,
+                        scale=alt.Scale(domain=STATE_ORDER, range=STATE_COLORS),
+                        legend=alt.Legend(orient='top')),
+        tooltip=[alt.Tooltip('coach:N', title='Coach'),
+                 alt.Tooltip('state:N', title='Doing'),
+                 alt.Tooltip('from:T', title='From', format='%a %-I:%M%p'),
+                 alt.Tooltip('to:T', title='To', format='%a %-I:%M%p')],
+    ).properties(height=max(160, 26 * len(order)))
+
+    with st.container(border=True):
+        st.markdown("**Where every bus is, hour by hour**")
+        st.caption("Driving a block, plugged into a charger, or parked and unplugged.")
+        st.altair_chart(timeline, width='stretch')
+
+    charge = twodim_df[['bus', 'time', 'eB']].copy()
+    charge['coach'] = charge['bus'].map(coach_of)
+    charge['soc'] = charge['eB'] / eb_max * 100
+    charge['at'] = origin + pd.to_timedelta(charge['time'] * 15, unit='m')
+
+    soc_chart = alt.Chart(charge).mark_line(strokeWidth=1.6).encode(
+        x=alt.X('at:T', title=None, axis=alt.Axis(format='%a %-I%p')),
+        y=alt.Y('soc:Q', title='State of charge (%)', scale=alt.Scale(domain=[0, 100])),
+        color=alt.Color('coach:N', title='Coach'),
+        tooltip=[alt.Tooltip('coach:N', title='Coach'),
+                 alt.Tooltip('soc:Q', title='SOC', format='.0f'),
+                 alt.Tooltip('at:T', title='At', format='%a %-I:%M%p')],
+    ).properties(height=260)
+
+    reserve = alt.Chart(pd.DataFrame([{'v': 20}])).mark_rule(
+        color='#B71C1C', strokeDash=[5, 4]).encode(y='v:Q')
+
+    with st.container(border=True):
+        st.markdown("**Charge through the plan**")
+        st.caption("Dashed line is the 20% reserve the schedule keeps every bus above.")
+        st.altair_chart(soc_chart + reserve, width='stretch')
+
+
 def opt_form():
 
     keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum']
@@ -79,9 +180,9 @@ def opt_form():
         # drop nans
         blocks = blocks.dropna(axis=1)
 
-        num_buses = len(edited_buses_df[edited_buses_df.Select == True])
-        for i in range(num_buses):
-            blocks.iat[i, blocks.columns.get_loc('Select')] = True
+        # Offer every block. The optimizer decides which are worth running when
+        # there are more blocks than buses to run them.
+        blocks['Select'] = True
         
         edited_blocks_df = st.data_editor(blocks, hide_index=True, use_container_width=True,
                     column_config={
@@ -114,7 +215,7 @@ def opt_form():
         chargers_df = chargepoint_stations()
         if chargers_df is not None:
             chargers_df = chargers_df[['stationName', 'networkStatus']]
-            chargers_df['Select'] = chargers_df.apply(lambda row: True if row['networkStatus'] == 'Reachable' else False, axis=1)
+            chargers_df['Select'] = True
             # change station name from format of VTA / STATION #1 to Station 1
             chargers_df['stationName'] = chargers_df['stationName'].str.replace(' / ', ' ')
             chargers_df['stationName'] = chargers_df['stationName'].str.replace('VTA STATION #', 'Station ')
@@ -272,6 +373,9 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
 
             # visualize assignments: 'bus', 'day', 'route'
             assignment_df = pd.read_csv(f'{path}/assignments_{filename}.csv')
+            raw_assignment_df = assignment_df.copy()
+            coach_of = dict(enumerate(selected_buses.reset_index()['vehicle']))
+            eb_max = float(results_df['ebMaxKwh'])
 
             # map bus to bus number using edited buses_df
             # reset index
@@ -313,72 +417,10 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             # )
 
 
-            # visualize twodim df: 'bus', 'time', 'powerCB', 'gridPowToB', 'eB'
+            # Rows are (time, bus) pairs, so slicing by position dropped an
+            # uneven number of early hours from each bus.
             twodim_df = pd.read_csv(f'{path}/{filename}.csv')
-            twodim_df = twodim_df.iloc[startTimeNum:]
+            twodim_df = twodim_df[twodim_df['time'] >= startTimeNum]
 
-            st.write("### Power CB Distribution")
-            cols = st.columns(3)
-            for bus in twodim_df['bus'].unique():
-                col = cols[bus % 3]
-                with col:
-                    bus_df = twodim_df[twodim_df['bus'] == bus]
-                    
-                    # Initialize the figure
-                    fig = go.Figure()
-                    
-                    # Add line plot to the figure
-                    fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['powerCB'], mode='lines', fill='tozeroy',
-                                        name='Power CB', line=dict(color='blue')))
-
-                    # add a vertical dash line every 96 time steps
-                    for i in range(96, len(bus_df), 96):
-                        fig.add_shape(type="line",
-                                    x0=i, y0=0, x1=i, y1=bus_df['powerCB'].max(),
-                                    line=dict(color="RoyalBlue", width=1, dash="dashdot"))
-
-                    # Update layout properties
-                    fig.update_layout(title=f'Bus {bus} Power Recieved', 
-                                    xaxis_title='time', 
-                                    yaxis_title='powerCB', 
-                                    legend_title='Legend')
-
-                    # Display the plot
-                    st.plotly_chart(fig, use_container_width=True)
-
-            st.write("### Energy Distribution in Bus Batteries")
-            cols = st.columns(3)
-            for bus in twodim_df['bus'].unique():
-                col = cols[bus % 3]
-                with col:
-                    bus_df = twodim_df[twodim_df['bus'] == bus]
-
-                    # Initialize the figure
-                    fig = go.Figure()
-                                
-                    # Add line plot to the figure
-                    fig.add_trace(go.Scatter(x=bus_df['time'], y=bus_df['eB'], mode='lines', fill='tozeroy',
-                                        name='Power CB', line=dict(color='red'), showlegend=False))
-                    
-                    # Get times when charging changes
-                    charging_starts = bus_df[bus_df['powerCB'] > 0]
-                    
-                    # Add the fill for charging times
-                    fig.add_trace(go.Scatter(x=charging_starts['time'], y=440*np.ones(len(charging_starts)), mode='lines', fill='tozeroy',
-                                            name='Charging', line=dict(color='rgba(230, 230, 0, 1)'), showlegend=False))  # rgba color for semi-transparent dark yellow
-
-                    # Add a vertical dash line every 96 time steps
-                    for i in range(96, len(bus_df), 96):
-                        fig.add_shape(type="line",
-                                    x0=i, y0=0, x1=i, y1=1,
-                                    yref="paper",
-                                    line=dict(color="RoyalBlue", width=1, dash="dashdot"))
-                        
-                    # Update layout properties
-                    fig.update_layout(title=f'Bus {bus} Energy', 
-                                    xaxis_title='time', 
-                                    yaxis_title='energy', 
-                                    showlegend=False)  # Turn off the legend
-
-                    # Display the plot
-                    st.plotly_chart(fig, use_container_width=True)
+            show_schedule(twodim_df, raw_assignment_df, selected_blocks,
+                          coach_of, eb_max)

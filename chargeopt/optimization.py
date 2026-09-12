@@ -54,7 +54,7 @@ END_SOC_FRACTION = 0.8
 # Statuses that mean a schedule was written. Callers test with is_solved rather
 # than comparing strings, so the wording can carry caveats - a dropped block, a
 # remaining gap - without the results view falling through to nothing.
-SOLVED_PREFIXES = ('Optimal solution found', 'Stopped at')
+SOLVED_PREFIXES = ('Optimal solution found', 'Stopped at', 'Schedule found')
 
 
 def is_solved(status):
@@ -64,7 +64,13 @@ def is_solved(status):
 def is_partial(status):
     """Solved, but with something the operator needs to know about."""
     text = str(status)
-    return is_solved(status) and ('unserved' in text or text.startswith('Stopped'))
+    return is_solved(status) and (
+        'unserved' in text
+        or 'no bus available' in text
+        or 'beyond range' in text
+        or text.startswith('Stopped')
+        or text.startswith('Schedule found')
+    )
 
 HIGHS_OPTIONS = {
     'mip_heuristic_effort': 0.5,
@@ -130,12 +136,31 @@ class ChargeOpt:
         T = D * 96
         optimized_time = [t for t in range(startTimeNum, T)]
 
-        [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
-        if report != 'All Clear':
-            return report, startTimeNum
-
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
             str(i) for i in range(len(routes))]
+
+        [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
+
+        # A block needing more than the usable pack can never be run by anything:
+        # the bus would have to leave holding more charge than it can store.
+        # Excluded individually here - init_routes' report aborted the entire
+        # run over one such block, which with every block selected is routine.
+        too_long = [r for r in range(R) if eRoute[r] >= eB_range]
+        excluded_note = ''
+        if too_long:
+            names = ', '.join(block_labels[r] for r in too_long)
+            keep = [r for r in range(R) if r not in too_long]
+            if not keep:
+                return (
+                    f"Every block needs more than the {eB_range:.0f} kWh a pack "
+                    f"can give: {names}"
+                ), startTimeNum
+            departure = np.asarray(departure)[keep]
+            arrival = np.asarray(arrival)[keep]
+            eRoute = np.asarray(eRoute)[keep]
+            block_labels = [block_labels[r] for r in keep]
+            R = len(keep)
+            excluded_note = f" - beyond range on one charge: {names}"
 
         # A bus starting below the 20% floor cannot satisfy eB's lower bound,
         # which otherwise surfaces as a bare "infeasible".
@@ -156,7 +181,25 @@ class ChargeOpt:
             for r in range(R):
                 # the time is one less than the matlab time
                 tDep[r, d] = int(departure[r] - 1 + d * 96)
-                tRet[r, d] = int(arrival[r] - 1 + d * 96)
+                ret = int(arrival[r] - 1 + d * 96)
+                # A block pulling in after midnight arrives at a smaller
+                # quarter than it left at, which otherwise models the bus as
+                # returning before it departs.
+                if arrival[r] < departure[r]:
+                    ret += 96
+                tRet[r, d] = ret
+
+        # Indexed by time so a block returning on the following day is still
+        # applied where it actually lands, rather than being looked for only
+        # among its own day's quarters and silently dropped.
+        returns_at = {}
+        departs_at = {}
+        for d in range(D):
+            for r in range(R):
+                if tRet[r, d] < T:
+                    returns_at.setdefault(int(tRet[r, d]), []).append((r, d))
+                if tDep[r, d] < T:
+                    departs_at.setdefault(int(tDep[r, d]), []).append((r, d))
 
         tDay = np.zeros((D, 96), dtype=int)
         for d in range(D):
@@ -300,8 +343,8 @@ class ChargeOpt:
                         continue
                     t = int(tDay[d][i])
                     depletion = sum(
-                        eRoute[r] * m.assignment[b, d, r]
-                        for r in range(R) if t == tRet[r][d]
+                        eRoute[r] * m.assignment[b, day, r]
+                        for r, day in returns_at.get(t, [])
                     )
                     m.battery.add(
                         m.eB[b, t] == m.eB[b, t - 1] + dt * m.powerCB[b, t - 1] - depletion)
@@ -312,8 +355,8 @@ class ChargeOpt:
                 for i in range(96):
                     t = int(tDay[d][i])
                     requirement = sum(
-                        eRoute[r] * m.assignment[b, d, r]
-                        for r in range(R) if t == tDep[r][d]
+                        eRoute[r] * m.assignment[b, day, r]
+                        for r, day in departs_at.get(t, [])
                     )
                     m.route_requirement.add(m.eB[b, t] >= eB_min + requirement)
 
@@ -331,7 +374,7 @@ class ChargeOpt:
         for b in range(B):
             for d in range(D):
                 for r in range(R):
-                    for t in range(int(tDep[r][d]), int(tRet[r][d]) + 1):
+                    for t in range(int(tDep[r][d]), min(int(tRet[r][d]) + 1, T)):
                         m.coverage.add(m.chargerUse[b, t] + m.assignment[b, d, r] <= 1)
 
         # Coverage is a preference, not a requirement. Demanding every block be
@@ -383,8 +426,9 @@ class ChargeOpt:
         #####################################
         # Solve
         #####################################
-        def _solve(limit):
+        def _solve(limit, warmstart=False):
             solver = Highs()
+            solver.config.warmstart = warmstart
             solver.config.time_limit = max(limit, 10)
             solver.config.mip_gap = MIP_GAP
             solver.config.load_solution = False
@@ -403,7 +447,8 @@ class ChargeOpt:
             # model choose what to drop rather than returning infeasible.
             m.full_coverage.deactivate()
             spent = time.time() - began
-            result = _solve(min(COVERAGE_TIME_LIMIT, TIME_LIMIT_SECONDS - spent))
+            budget = min(COVERAGE_TIME_LIMIT, TIME_LIMIT_SECONDS - spent)
+            result = _solve(budget)
 
             if result.best_feasible_objective is None:
                 if result.termination_condition == TerminationCondition.infeasible:
@@ -414,25 +459,36 @@ class ChargeOpt:
 
         # Pass two holds that coverage fixed and minimises electricity alone, so
         # the gap it reports is a gap on cost.
-        for d in COVERED_DAYS:
-            for r in range(R):
-                m.unserved[d, r].fix(round(pyo.value(m.unserved[d, r])))
+        # Hold how many blocks get covered, but let cost decide which ones.
+        # Fixing each choice would lock in whichever maximal set the first pass
+        # happened to land on, and with more blocks than buses there are many.
+        unserved_count = sum(
+            round(pyo.value(m.unserved[d, r]))
+            for d in COVERED_DAYS for r in range(R)
+        )
+        m.coverage_level = pyo.Constraint(
+            expr=sum(m.unserved[d, r] for d in COVERED_DAYS for r in range(R))
+            <= unserved_count)
 
         m.coverage_obj.deactivate()
         m.cost_obj.activate()
 
         remaining = TIME_LIMIT_SECONDS - (time.time() - began)
-        result = _solve(remaining)
-        terminal = result.termination_condition
+        cost_result = _solve(remaining, warmstart=True)
+        terminal = cost_result.termination_condition
         sol_time = time.time() - began
 
-        if result.best_feasible_objective is None:
-            return "Model Error", startTimeNum
+        # The variables still hold the coverage pass's schedule, and
+        # load_solution is off, so a cost pass that runs out of time leaves
+        # them alone. That schedule is valid - just not cost-optimised - and
+        # is a far better answer than discarding the whole run.
+        cost_optimised = cost_result.best_feasible_objective is not None
+        if cost_optimised:
+            result = cost_result
+            result.solution_loader.load_vars()
 
-        result.solution_loader.load_vars()
-
-        # best_feasible_objective carries the unserved penalty, which is a
-        # solver device rather than money. Report what the electricity costs.
+        # Recomputed from the schedule rather than read off an objective,
+        # which is the coverage count in one pass and cost in the other.
         obj_val = 0.25 * sum(
             gridPowPrice[t] * sum(pyo.value(m.gridPowToB[b, t]) for b in range(B))
             for t in range(T)
@@ -499,7 +555,12 @@ class ChargeOpt:
         results_df = pd.concat([results_df, new_row], ignore_index=True)
         results_df.to_csv(results_file, index=False)
 
-        if terminal == TerminationCondition.optimal:
+        if not cost_optimised:
+            status = (
+                f"Schedule found, but cost was still being optimised at "
+                f"{TIME_LIMIT_SECONDS}s"
+            )
+        elif terminal == TerminationCondition.optimal:
             status = "Optimal solution found"
         else:
             bound = result.best_objective_bound
@@ -509,4 +570,4 @@ class ChargeOpt:
                 + (f" ({gap:.1%} gap)" if gap is not None else "")
             )
 
-        return status + unserved_note, startTimeNum
+        return status + unserved_note + excluded_note, startTimeNum
