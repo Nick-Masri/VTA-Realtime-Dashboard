@@ -7,7 +7,7 @@ supabase~=1.0.3
 # numpy MUST stay <2: scikit-learn 1.2.2 (below) is ABI-built against numpy 1.x
 numpy>=1.26,<2
 pandas>=2.0,<3
-# ploting (vehicles soc graph)
+# plotting (vehicles soc graph; the optimization views use altair via streamlit)
 plotly
 # shapely
 shapely
