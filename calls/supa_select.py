@@ -1,5 +1,6 @@
 import pandas as pd
 from supabase import create_client, Client
+from supabase.lib.client_options import ClientOptions
 import os
 from datetime import datetime, timedelta
 import pytz
@@ -19,7 +20,12 @@ DEMO_STALE_AFTER = timedelta(hours=24)
 # "Supabase unavailable (The read operation timed out)". PostgREST also caps a
 # response, so an unbounded query was never returning the whole table anyway.
 HISTORY_WINDOW = timedelta(days=60)
-MAX_ROWS = 20000
+MAX_ROWS = 5000
+
+# postgrest-py defaults to a 5 second budget for the whole request, which a
+# history query over a table this size will not meet. Raised rather than
+# removed so a genuinely stuck request still gives up.
+CLIENT_TIMEOUT_SECONDS = 30
 
 
 def _since():
@@ -65,7 +71,8 @@ def _demo_notice():
 def setup_client():
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
-    supabase: Client = create_client(url, key)
+    options = ClientOptions(postgrest_client_timeout=CLIENT_TIMEOUT_SECONDS)
+    supabase: Client = create_client(url, key, options=options)
     return supabase
 
 
@@ -78,7 +85,15 @@ def _fetch(build_query):
     try:
         return build_query(setup_client()).execute().data
     except Exception as exc:
-        demo_state.note_issue(f"Supabase unavailable ({exc})")
+        text = str(exc).lower()
+        if 'timed out' in text or 'timeout' in text:
+            demo_state.note_issue(
+                f"Supabase query exceeded {CLIENT_TIMEOUT_SECONDS}s - using "
+                "simulated data. The history tables likely need an index on "
+                "created_at."
+            )
+        else:
+            demo_state.note_issue(f"Supabase unavailable ({exc})")
         return None
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
