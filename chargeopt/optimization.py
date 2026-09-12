@@ -20,27 +20,30 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 # fleet lands around 110-125s but varies with machine load - one run in five
 # reached 180s with nothing - so the ceiling carries real headroom.
 TIME_LIMIT_SECONDS = 300
-# Share of the budget given to deciding coverage before cost is optimised.
-COVERAGE_TIME_LIMIT = 90
-# Held back for the cost pass. Everything else goes to finding coverage, since
-# without a covering schedule there is nothing to cost in the first place.
-COST_RESERVE_SECONDS = 60
+# Share of each window's budget given to deciding coverage before cost.
+COVERAGE_SHARE = 0.45
 MIP_GAP = 0.03
+
+# The plan is built as rolling 24-hour windows starting from now, one solved
+# after another with each bus's charge carried into the next. A window holds a
+# block and the night that recharges for it, so the overnight top-up is never
+# split across a boundary the way a midnight-to-midnight day would split it.
+WINDOW = 96
+DAYS = 3
+# Windows are anchored to the operating day rather than to the moment the plan
+# is built. Anchored to "now", a block starting more than a few hours out has
+# its return fall past the window's end and gets dropped; anchored to the small
+# hours, a pull-out and the night that recharges for it sit in the same window.
+DAY_START = 12  # 03:00
+
+# Charging stretches allowed per bus per operating day. One is what the
+# original model allowed across a whole calendar day, but a block and the
+# charging either side of it now sit inside a single window, and a bus needing
+# a top-up before pull-out as well as a recharge after pull-in needs two.
+CHARGE_WINDOWS_PER_DAY = 2
 
 # The binding difficulty here is finding any feasible schedule, not closing the
 # gap, so HiGHS is pushed well past its default heuristic effort of 0.05.
-# The original capped charger transitions at 2 across the entire run, which over
-# D=3 days forces one contiguous charging window for the whole horizon rather
-# than one per night. That reading left a 4-bus, 3-route case at mixed starting
-# SOC without any feasible solution after 600s; per-day it proves optimal in
-# about 16.
-#
-# 'horizon' is workable when buses start at or near a full pack: a bus that
-# starts full needs no pre-route top-up, so one window after its route is
-# enough, and the whole ten-bus fleet then solves to optimality in about two
-# minutes. Start a bus low enough that it must charge before its route as well
-# as after, and one window can no longer cover both.
-CHANGE_CAP_SCOPE = 'day'
 
 # What each bus must have left at the end of the horizon.
 #   'start'    - at least what it began with. Repeatable: the plan can be run
@@ -97,6 +100,223 @@ def _soc_fraction(raw):
     return float(raw) / 100
 
 
+
+
+def _window_blocks(w0, departure, arrival, frozen):
+    """Where each block falls inside the operating day starting at quarter w0.
+
+    Blocks recur daily, so every window holds one occurrence of each. A block
+    already under way when the plan is built cannot be crewed now, and one
+    whose return lands past the window's end would never have its energy
+    deducted; neither is offered.
+    """
+    placed = {}
+    for r in range(len(departure)):
+        start = int((departure[r] - 1 - w0) % WINDOW)
+        length = int((arrival[r] - departure[r]) % WINDOW)
+        if start >= frozen and start + length < WINDOW:
+            placed[r] = (start, start + length)
+    return placed
+
+
+def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, frozen=0):
+    """One rolling day. Returns the schedule, or None if nothing was found."""
+    B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt = sizes
+    runnable = sorted(placed)
+
+    m = pyo.ConcreteModel()
+    m.B = pyo.RangeSet(0, B - 1)
+    m.I = pyo.RangeSet(0, WINDOW - 1)
+    m.R = pyo.Set(initialize=runnable, ordered=True)
+
+    m.powerCB = pyo.Var(m.B, m.I, bounds=(0, pCB_ub))
+    m.gridPowToB = pyo.Var(m.B, m.I, bounds=(0, gridKWH))
+    m.eB = pyo.Var(m.B, m.I, bounds=(eB_min, eB_max))
+    m.chargerUse = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.T1 = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.T2 = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.change = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.charging = pyo.Var(m.B, domain=pyo.Binary)
+    m.tracker = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.tracker_b = pyo.Var(m.B, m.I, domain=pyo.Binary)
+    m.assignment = pyo.Var(m.B, m.R, domain=pyo.Binary)
+    m.unserved = pyo.Var(m.R, domain=pyo.Binary)
+
+    M_fill = eB_range
+    M_power = pCB_ub
+    M_low = pCB_ub * dt
+    M_high = eB_range - pCB_ub * dt
+    later = pyo.RangeSet(1, WINDOW - 1)
+
+    m.change_link = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                   m.change[b, i] == m.T1[b, i] + m.T2[b, i])
+    m.use_link_1 = pyo.Constraint(m.B, later, rule=lambda m, b, i:
+                                  m.T1[b, i] - m.T2[b, i]
+                                  == m.chargerUse[b, i] - m.chargerUse[b, i - 1])
+    m.use_link_2 = pyo.Constraint(m.B, later, rule=lambda m, b, i:
+                                  m.change[b, i] <= m.chargerUse[b, i - 1] + m.chargerUse[b, i])
+    m.use_link_3 = pyo.Constraint(m.B, later, rule=lambda m, b, i:
+                                  m.change[b, i] <= 2 - m.chargerUse[b, i - 1] - m.chargerUse[b, i])
+    m.first_change = pyo.Constraint(m.B, rule=lambda m, b:
+                                    m.change[b, 0] == m.chargerUse[b, 0])
+    m.change_cap = pyo.Constraint(m.B, rule=lambda m, b:
+                                  sum(m.change[b, i] for i in m.I)
+                                  <= 2 * CHARGE_WINDOWS_PER_DAY)
+    m.daily_min = pyo.Constraint(m.B, rule=lambda m, b:
+                                 sum(m.chargerUse[b, i] for i in m.I) >= 4 * m.charging[b])
+    m.daily_max = pyo.Constraint(m.B, rule=lambda m, b:
+                                 sum(m.chargerUse[b, i] for i in m.I) <= WINDOW * m.charging[b])
+    m.power_gate = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                  m.powerCB[b, i] <= pCB_ub * m.chargerUse[b, i])
+    m.fill_rule = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                 m.powerCB[b, i] * dt
+                                 + M_fill * (1 - m.chargerUse[b, i])
+                                 + M_fill * (1 - m.tracker[b, i])
+                                 >= eB_max - m.eB[b, i])
+    m.full_power_rule = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                       m.powerCB[b, i] + M_power * (1 - m.chargerUse[b, i])
+                                       >= pCB_ub * m.tracker_b[b, i])
+    m.tracker_low = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                   (eB_max - m.eB[b, i]) >= (pCB_ub * dt) - M_low * m.tracker[b, i])
+    m.tracker_high = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                    (eB_max - m.eB[b, i]) <= (pCB_ub * dt) + M_high * m.tracker_b[b, i])
+    m.tracker_pick = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                    m.tracker[b, i] + m.tracker_b[b, i] == 1)
+    m.charger_count = pyo.Constraint(m.I, rule=lambda m, i:
+                                     sum(m.chargerUse[b, i] for b in m.B) <= numChargers)
+    m.grid_total = pyo.Constraint(m.I, rule=lambda m, i:
+                                  sum(m.gridPowToB[b, i] for b in m.B) <= gridKWH)
+    m.charger_supply = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
+                                      m.powerCB[b, i] == m.gridPowToB[b, i])
+
+    returns_at = {}
+    departs_at = {}
+    for r, (start, end) in placed.items():
+        returns_at.setdefault(end, []).append(r)
+        departs_at.setdefault(start, []).append(r)
+
+    m.battery = pyo.ConstraintList()
+    m.route_requirement = pyo.ConstraintList()
+    m.opening = pyo.ConstraintList()
+    for b in range(B):
+        held = eB_max * soc_at_start[b]
+        m.opening.add(m.eB[b, 0] == held)
+        # The stretch of this window that is already in the past when the plan
+        # is built: nothing can be scheduled into it.
+        for i in range(frozen):
+            m.opening.add(m.eB[b, i] == held)
+            m.opening.add(m.powerCB[b, i] == 0)
+            m.opening.add(m.gridPowToB[b, i] == 0)
+            m.opening.add(m.chargerUse[b, i] == 0)
+        m.opening.add(m.eB[b, WINDOW - 1] >= _end_target(soc_at_start[b], eB_max, eB_min))
+        for i in range(WINDOW):
+            if i > 0:
+                drop = sum(eRoute[r] * m.assignment[b, r] for r in returns_at.get(i, []))
+                m.battery.add(m.eB[b, i] == m.eB[b, i - 1] + dt * m.powerCB[b, i - 1] - drop)
+            need = sum(eRoute[r] * m.assignment[b, r] for r in departs_at.get(i, []))
+            m.route_requirement.add(m.eB[b, i] >= eB_min + need)
+
+    m.coverage = pyo.ConstraintList()
+    for b in range(B):
+        for r, (start, end) in placed.items():
+            for i in range(start, min(end + 1, WINDOW)):
+                m.coverage.add(m.chargerUse[b, i] + m.assignment[b, r] <= 1)
+
+    # A window whose blocks have all departed already still has to be solved -
+    # the fleet charges through it - but its coverage constraints would reduce
+    # to trivial truths, which Pyomo rejects.
+    if runnable:
+        m.route_covered = pyo.Constraint(m.R, rule=lambda m, r:
+                                         sum(m.assignment[b, r] for b in m.B)
+                                         + m.unserved[r] == 1)
+        m.one_route_each = pyo.Constraint(m.B, rule=lambda m, b:
+                                          sum(m.assignment[b, r] for r in m.R) <= 1)
+        m.full_coverage = pyo.Constraint(expr=sum(m.unserved[r] for r in runnable) == 0)
+
+    energy_cost = 0.25 * sum(prices[i] * sum(m.gridPowToB[b, i] for b in range(B))
+                             for i in range(WINDOW))
+    m.coverage_obj = pyo.Objective(
+        expr=sum(m.unserved[r] for r in runnable) if runnable else 0,
+        sense=pyo.minimize)
+    m.cost_obj = pyo.Objective(expr=energy_cost, sense=pyo.minimize)
+    m.cost_obj.deactivate()
+
+    def run(limit, warmstart=False):
+        solver = Highs()
+        solver.config.warmstart = warmstart
+        solver.config.time_limit = max(limit, 5)
+        solver.config.mip_gap = MIP_GAP
+        solver.config.load_solution = False
+        solver.config.stream_solver = False
+        for option, value in HIGHS_OPTIONS.items():
+            solver.highs_options[option] = value
+        return solver.solve(m)
+
+    def seed_parked():
+        for b in range(B):
+            held = eB_max * soc_at_start[b]
+            near_full = (eB_max - held) <= pCB_ub * dt
+            for i in range(WINDOW):
+                m.eB[b, i].set_value(held)
+                m.powerCB[b, i].set_value(0)
+                m.gridPowToB[b, i].set_value(0)
+                for var in (m.chargerUse, m.T1, m.T2, m.change):
+                    var[b, i].set_value(0)
+                m.tracker[b, i].set_value(1 if near_full else 0)
+                m.tracker_b[b, i].set_value(0 if near_full else 1)
+            m.charging[b].set_value(0)
+            for r in runnable:
+                m.assignment[b, r].set_value(0)
+        for r in runnable:
+            m.unserved[r].set_value(1)
+
+    began = time.time()
+    result = run(budget * COVERAGE_SHARE)
+    if result.best_feasible_objective is None:
+        if runnable:
+            m.full_coverage.deactivate()
+        if END_SOC_MODE in ('start', 'reserve'):
+            seed_parked()
+        spent = time.time() - began
+        result = run(budget * COVERAGE_SHARE - spent + budget * 0.1,
+                     warmstart=END_SOC_MODE in ('start', 'reserve'))
+        if result.best_feasible_objective is None:
+            return None
+    result.solution_loader.load_vars()
+
+    if runnable:
+        m.coverage_level = pyo.Constraint(
+            expr=sum(m.unserved[r] for r in runnable)
+            <= sum(round(pyo.value(m.unserved[r])) for r in runnable))
+    m.coverage_obj.deactivate()
+    m.cost_obj.activate()
+
+    cost_result = run(budget - (time.time() - began), warmstart=True)
+    optimal = cost_result.termination_condition == TerminationCondition.optimal
+    if cost_result.best_feasible_objective is not None:
+        cost_result.solution_loader.load_vars()
+    else:
+        optimal = False
+
+    rows = []
+    for i in range(WINDOW):
+        for b in range(B):
+            rows.append({'time': w0 + i, 'bus': b,
+                         'powerCB': pyo.value(m.powerCB[b, i]),
+                         'eB': pyo.value(m.eB[b, i]),
+                         'chargerUse': pyo.value(m.chargerUse[b, i])})
+
+    return {
+        'rows': rows,
+        'end_soc': {b: pyo.value(m.eB[b, WINDOW - 1]) / eB_max for b in range(B)},
+        'served': {r: [b for b in range(B) if pyo.value(m.assignment[b, r]) > 0.5]
+                   for r in runnable},
+        'unserved': [r for r in runnable if pyo.value(m.unserved[r]) > 0.5],
+        'cost': 0.25 * sum(prices[i] * sum(pyo.value(m.gridPowToB[b, i]) for b in range(B))
+                           for i in range(WINDOW)),
+        'optimal': optimal,
+    }
+
 class ChargeOpt:
     def __init__(self, buses, routes, chargers):
         self.buses = buses
@@ -116,48 +336,34 @@ class ChargeOpt:
         if R == 0:
             return "No blocks selected", startTimeNum
 
-        #####################################
-        # Config
-        #####################################
         config_path = os.path.join(os.getcwd(), "chargeopt/config.yml")
         with open(config_path, "r") as file:
             config = yaml.safe_load(file)
 
-        current_datetime = datetime.now().strftime("%m-%d-%Y_%H-%M-%S")
-        filename = f'chargeopt_{current_datetime}'
-
+        filename = f'chargeopt_{datetime.now().strftime("%m-%d-%Y_%H-%M-%S")}'
         eB_max = config["ebMaxKwh"]
         eB_min = int(eB_max * .2)
         eB_range = eB_max - eB_min
-
         numChargers = len(self.chargers)
         pCB_ub = config["chargerPower"]
         gridKWH = config['gridMaxPower']
-
-        D = 3
         dt = 0.25
-        T = D * 96
-        optimized_time = [t for t in range(startTimeNum, T)]
 
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
             str(i) for i in range(len(routes))]
 
         [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
 
-        # A block needing more than the usable pack can never be run by anything:
-        # the bus would have to leave holding more charge than it can store.
-        # Excluded individually here - init_routes' report aborted the entire
-        # run over one such block, which with every block selected is routine.
+        # A block needing more than the usable pack can never be run by
+        # anything: the bus would have to leave holding more than it can store.
         too_long = [r for r in range(R) if eRoute[r] >= eB_range]
         excluded_note = ''
         if too_long:
             names = ', '.join(block_labels[r] for r in too_long)
             keep = [r for r in range(R) if r not in too_long]
             if not keep:
-                return (
-                    f"Every block needs more than the {eB_range:.0f} kWh a pack "
-                    f"can give: {names}"
-                ), startTimeNum
+                return (f"Every block needs more than the {eB_range:.0f} kWh a "
+                        f"pack can give: {names}"), startTimeNum
             departure = np.asarray(departure)[keep]
             arrival = np.asarray(arrival)[keep]
             eRoute = np.asarray(eRoute)[keep]
@@ -165,427 +371,64 @@ class ChargeOpt:
             R = len(keep)
             excluded_note = f" - beyond range on one charge: {names}"
 
-        # A bus starting below the 20% floor cannot satisfy eB's lower bound,
-        # which otherwise surfaces as a bare "infeasible".
-        start_soc = {b: _soc_fraction(self.buses.iloc[b, 1]) for b in range(B)}
-        too_low = [
-            str(self.buses.iloc[b, 0]) for b in range(B)
-            if eB_max * start_soc[b] < eB_min
-        ]
+        soc = {b: _soc_fraction(self.buses.iloc[b, 1]) for b in range(B)}
+        too_low = [str(self.buses.iloc[b, 0]) for b in range(B)
+                   if eB_max * soc[b] < eB_min]
         if too_low:
-            return (
-                f"Below the {eB_min / eB_max:.0%} reserve at start: "
-                f"{', '.join(too_low)}"
-            ), startTimeNum
+            return (f"Below the {eB_min / eB_max:.0%} reserve at start: "
+                    f"{', '.join(too_low)}"), startTimeNum
 
-        tDep = np.zeros((R, D), dtype=int)
-        tRet = np.zeros((R, D), dtype=int)
-        for d in range(D):
-            for r in range(R):
-                # the time is one less than the matlab time
-                tDep[r, d] = int(departure[r] - 1 + d * 96)
-                ret = int(arrival[r] - 1 + d * 96)
-                # A block pulling in after midnight arrives at a smaller
-                # quarter than it left at, which otherwise models the bus as
-                # returning before it departs.
-                if arrival[r] < departure[r]:
-                    ret += 96
-                tRet[r, d] = ret
+        prices = init_grid_pricing(DAYS + 2)
+        sizes = (B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt)
 
-        # Indexed by time so a block returning on the following day is still
-        # applied where it actually lands, rather than being looked for only
-        # among its own day's quarters and silently dropped.
-        returns_at = {}
-        departs_at = {}
-        for d in range(D):
-            for r in range(R):
-                if tRet[r, d] < T:
-                    returns_at.setdefault(int(tRet[r, d]), []).append((r, d))
-                if tDep[r, d] < T:
-                    departs_at.setdefault(int(tDep[r, d]), []).append((r, d))
-
-        tDay = np.zeros((D, 96), dtype=int)
-        for d in range(D):
-            tDay[d, :] = np.arange(d * 96, (d + 1) * 96)
-
-        gridPowAvail = gridKWH
-        gridPowPrice = init_grid_pricing(D)
-
-        #####################################
-        # Model
-        #####################################
-        m = pyo.ConcreteModel()
-        m.B = pyo.RangeSet(0, B - 1)
-        m.T = pyo.RangeSet(0, T - 1)
-        m.D = pyo.RangeSet(0, D - 1)
-        m.R = pyo.RangeSet(0, R - 1)
-        m.OT = pyo.Set(initialize=optimized_time, ordered=True)
-        # Service is asked for on every day of the horizon, but only for blocks
-        # that can still be run: one that already pulled out before the plan
-        # starts cannot be crewed now, and one returning past the horizon never
-        # gets its energy deducted.
-        coverage_pairs = [
-            (d, r) for d in range(D) for r in range(R)
-            if tDep[r, d] >= startTimeNum and tRet[r, d] < T
-        ]
-        coverable = set(coverage_pairs)
-        m.COVER = pyo.Set(initialize=coverage_pairs, dimen=2, ordered=True)
-
-        m.powerCB = pyo.Var(m.B, m.T, bounds=(0, pCB_ub))
-        m.gridPowToB = pyo.Var(m.B, m.T, bounds=(0, gridKWH))
-        m.eB = pyo.Var(m.B, m.T, bounds=(eB_min, eB_max))
-
-        m.chargerUse = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.T1 = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.T2 = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.change = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.charging = pyo.Var(m.B, m.D, domain=pyo.Binary)
-        m.tracker = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.tracker_b = pyo.Var(m.B, m.T, domain=pyo.Binary)
-        m.assignment = pyo.Var(m.B, m.D, m.R, domain=pyo.Binary)
-
-        #####################################
-        # Big-M constants
-        #####################################
-        # Each is the smallest value that still relaxes its own constraint.
-        # A single blanket M weakens the LP relaxation, which matters far more
-        # to an open-source branch-and-bound than it did to Gurobi.
-        M_fill = eB_range                    # charge needed to fill the pack
-        M_power = pCB_ub                     # charger output
-        M_low = pCB_ub * dt                  # energy one interval can deliver
-        M_high = eB_range - pCB_ub * dt
-
-        #####################################
-        # Charging constraints
-        #####################################
-        m.change_link = pyo.Constraint(
-            m.B, m.T, rule=lambda m, b, t: m.change[b, t] == m.T1[b, t] + m.T2[b, t])
-
-        def _init_zero(var):
-            return pyo.Constraint(
-                m.B, pyo.RangeSet(0, startTimeNum - 1),
-                rule=lambda m, b, t: var[b, t] == 0)
-
-        m.T1_init = _init_zero(m.T1)
-        m.T2_init = _init_zero(m.T2)
-
-        after_start = pyo.RangeSet(1, T - 1)
-        m.use_link_1 = pyo.Constraint(
-            m.B, after_start,
-            rule=lambda m, b, t: m.T1[b, t] - m.T2[b, t]
-            == m.chargerUse[b, t] - m.chargerUse[b, t - 1])
-        m.use_link_2 = pyo.Constraint(
-            m.B, after_start,
-            rule=lambda m, b, t: m.change[b, t]
-            <= m.chargerUse[b, t - 1] + m.chargerUse[b, t])
-        m.use_link_3 = pyo.Constraint(
-            m.B, after_start,
-            rule=lambda m, b, t: m.change[b, t]
-            <= 2 - m.chargerUse[b, t - 1] - m.chargerUse[b, t])
-
-        if CHANGE_CAP_SCOPE == 'day':
-            m.change_cap = pyo.Constraint(
-                m.B, m.D, rule=lambda m, b, d:
-                sum(m.change[b, int(t)] for t in tDay[d]) <= 2)
-        else:
-            m.change_cap = pyo.Constraint(
-                m.B, rule=lambda m, b: sum(m.change[b, t] for t in m.T) <= 2)
-        m.daily_min = pyo.Constraint(
-            m.B, m.D, rule=lambda m, b, d:
-            sum(m.chargerUse[b, int(t)] for t in tDay[d]) >= 4 * m.charging[b, d])
-        m.daily_max = pyo.Constraint(
-            m.B, m.D, rule=lambda m, b, d:
-            sum(m.chargerUse[b, int(t)] for t in tDay[d]) <= 96 * m.charging[b, d])
-
-        m.power_gate = pyo.Constraint(
-            m.B, m.T,
-            rule=lambda m, b, t: m.powerCB[b, t] <= pCB_ub * m.chargerUse[b, t])
-
-        # When charging, deliver at least what is needed to fill the pack.
-        # Gurobi accepted the original (eB_max - eB) * tracker product; that is
-        # bilinear, so it is switched here for the exact linearization a binary
-        # multiplier allows - a second big-M that relaxes the row when
-        # tracker is 0, which is all the product did.
-        m.fill_rule = pyo.Constraint(
-            m.B, m.OT,
-            rule=lambda m, b, t: m.powerCB[b, t] * dt
-            + M_fill * (1 - m.chargerUse[b, t])
-            + M_fill * (1 - m.tracker[b, t])
-            >= eB_max - m.eB[b, t])
-        # ... or run the charger flat out if more than that is needed
-        m.full_power_rule = pyo.Constraint(
-            m.B, m.OT,
-            rule=lambda m, b, t: m.powerCB[b, t] + M_power * (1 - m.chargerUse[b, t])
-            >= pCB_ub * m.tracker_b[b, t])
-
-        m.tracker_low = pyo.Constraint(
-            m.B, m.OT,
-            rule=lambda m, b, t: (eB_max - m.eB[b, t])
-            >= (pCB_ub * dt) - M_low * m.tracker[b, t])
-        m.tracker_high = pyo.Constraint(
-            m.B, m.OT,
-            rule=lambda m, b, t: (eB_max - m.eB[b, t])
-            <= (pCB_ub * dt) + M_high * m.tracker_b[b, t])
-        m.tracker_pick = pyo.Constraint(
-            m.B, m.T,
-            rule=lambda m, b, t: m.tracker[b, t] + m.tracker_b[b, t] == 1)
-
-        m.charger_count = pyo.Constraint(
-            m.T, rule=lambda m, t: sum(m.chargerUse[b, t] for b in m.B) <= numChargers)
-
-        #####################################
-        # Power availability
-        #####################################
-        m.grid_total = pyo.Constraint(
-            m.T, rule=lambda m, t: sum(m.gridPowToB[b, t] for b in m.B) <= gridPowAvail)
-        m.charger_supply = pyo.Constraint(
-            m.B, m.T, rule=lambda m, b, t: m.powerCB[b, t] == m.gridPowToB[b, t])
-
-        #####################################
-        # Bus battery operation
-        #####################################
-        m.battery = pyo.ConstraintList()
-        for b in range(B):
-            for d in range(D):
-                for i in range(96):
-                    if d == 0 and i == 0:
-                        continue
-                    t = int(tDay[d][i])
-                    depletion = sum(
-                        eRoute[r] * m.assignment[b, day, r]
-                        for r, day in returns_at.get(t, [])
-                    )
-                    m.battery.add(
-                        m.eB[b, t] == m.eB[b, t - 1] + dt * m.powerCB[b, t - 1] - depletion)
-
-        m.route_requirement = pyo.ConstraintList()
-        for b in range(B):
-            for d in range(D):
-                for i in range(96):
-                    t = int(tDay[d][i])
-                    requirement = sum(
-                        eRoute[r] * m.assignment[b, day, r]
-                        for r, day in departs_at.get(t, [])
-                    )
-                    m.route_requirement.add(m.eB[b, t] >= eB_min + requirement)
-
-        m.soc_bounds = pyo.ConstraintList()
-        for b in range(B):
-            soc = start_soc[b]
-            for t in range(startTimeNum):
-                m.soc_bounds.add(m.eB[b, t] == eB_max * soc)
-            m.soc_bounds.add(m.eB[b, T - 1] >= _end_target(soc, eB_max, eB_min))
-
-        #####################################
-        # Route coverage
-        #####################################
-        m.coverage = pyo.ConstraintList()
-        for b in range(B):
-            for d in range(D):
-                for r in range(R):
-                    for t in range(int(tDep[r][d]), min(int(tRet[r][d]) + 1, T)):
-                        m.coverage.add(m.chargerUse[b, t] + m.assignment[b, d, r] <= 1)
-
-        # Coverage is a preference, not a requirement. Demanding every block be
-        # run made the whole model infeasible whenever one block had no bus that
-        # could take it, which told the operator nothing. The model now chooses
-        # what to leave unserved and pays for it in the objective.
-        m.unserved = pyo.Var(m.COVER, domain=pyo.Binary)
-        m.route_covered = pyo.Constraint(
-            m.COVER,
-            rule=lambda m, d, r: sum(m.assignment[b, d, r] for b in m.B)
-            + m.unserved[d, r] == 1)
-
-        m.not_runnable = pyo.ConstraintList()
-        for d in range(D):
-            for r in range(R):
-                if (d, r) not in coverable:
-                    for b in range(B):
-                        m.not_runnable.add(m.assignment[b, d, r] == 0)
-        m.one_route_each = pyo.Constraint(
-            m.B, m.D,
-            rule=lambda m, b, d: sum(m.assignment[b, d, r] for r in m.R) <= 1)
-
-        m.time_shift = pyo.ConstraintList()
-        for b in range(B):
-            for t in range(startTimeNum):
-                m.time_shift.add(m.powerCB[b, t] == 0)
-                m.time_shift.add(m.gridPowToB[b, t] == 0)
-                m.time_shift.add(m.chargerUse[b, t] == 0)
-
-        #####################################
-        # Objective
-        #####################################
-        energy_cost_expr = 0.25 * sum(
-            gridPowPrice[t] * sum(m.gridPowToB[b, t] for b in range(B))
-            for t in range(T)
-        )
-
-        # Two objectives, used in turn. Combining them with a penalty made both
-        # harder: the relaxation serves a block fractionally, so the bound kept
-        # half the penalty and the gap described that rather than the schedule,
-        # while the cost term slowed the search for full coverage.
-        m.coverage_obj = pyo.Objective(
-            expr=sum(m.unserved[d, r] for d, r in coverage_pairs),
-            sense=pyo.minimize,
-        )
-        m.cost_obj = pyo.Objective(expr=energy_cost_expr, sense=pyo.minimize)
-        m.cost_obj.deactivate()
-
-        # Insisting on full coverage is a constraint the solver can propagate,
-        # where minimising the count is a target it has to search toward - so
-        # the ordinary case is markedly faster this way round. Relaxed below
-        # only if it turns out nothing can serve every block.
-        m.full_coverage = pyo.Constraint(
-            expr=sum(m.unserved[d, r] for d, r in coverage_pairs) == 0)
-
-        #####################################
-        # Solve
-        #####################################
-        def _solve(limit, warmstart=False):
-            solver = Highs()
-            solver.config.warmstart = warmstart
-            solver.config.time_limit = max(limit, 10)
-            solver.config.mip_gap = MIP_GAP
-            solver.config.load_solution = False
-            solver.config.stream_solver = False
-            for option, value in HIGHS_OPTIONS.items():
-                solver.highs_options[option] = value
-            return solver.solve(m)
-
+        schedule = []
+        assignments = []
+        missed = {}
+        asked = 0
+        cost = 0.0
+        all_optimal = True
         began = time.time()
 
-        def _seed_do_nothing():
-            """Park every bus: nothing runs, nothing charges, charge holds.
+        for day in range(DAYS):
+            w0 = DAY_START + day * WINDOW
+            frozen = max(0, min(startTimeNum - w0, WINDOW))
+            placed = _window_blocks(w0, departure, arrival, frozen)
+            asked += len(placed)
 
-            Valid by inspection - no route is assigned so nothing is drawn
-            down, and eB sitting at its starting value satisfies both the
-            reserve floor and an end target of "at least what you began with".
-            Handing this to the solver means it always has an incumbent to
-            improve on rather than hunting for feasibility, which at fleet
-            scale it was failing to do inside the budget.
-            """
-            for b in range(B):
-                held = eB_max * start_soc[b]
-                # tracker picks whichever side of a single interval's charge
-                # the remaining headroom falls on.
-                near_full = (eB_max - held) <= pCB_ub * dt
-                for t in range(T):
-                    m.eB[b, t].set_value(held)
-                    m.powerCB[b, t].set_value(0)
-                    m.gridPowToB[b, t].set_value(0)
-                    for var in (m.chargerUse, m.T1, m.T2, m.change):
-                        var[b, t].set_value(0)
-                    m.tracker[b, t].set_value(1 if near_full else 0)
-                    m.tracker_b[b, t].set_value(0 if near_full else 1)
-                for d in range(D):
-                    m.charging[b, d].set_value(0)
-                    for r in range(R):
-                        m.assignment[b, d, r].set_value(0)
-            for d, r in coverage_pairs:
-                m.unserved[d, r].set_value(1)
+            left = TIME_LIMIT_SECONDS - (time.time() - began)
+            budget = max(left / (DAYS - day), 10)
+            out = _solve_window(w0, soc, placed, eRoute,
+                                prices[w0:w0 + WINDOW], budget, sizes, frozen)
+            if out is None:
+                return (f"No schedule found for day {day + 1} within "
+                        f"{TIME_LIMIT_SECONDS}s"), startTimeNum
 
-        # Pass one: every block served.
-        result = _solve(COVERAGE_TIME_LIMIT)
+            schedule.extend(out['rows'])
+            cost += out['cost']
+            all_optimal = all_optimal and out['optimal']
+            soc = out['end_soc']
 
-        if result.best_feasible_objective is None:
-            # Nothing covers every block, or not within the budget. Let the
-            # model choose what to drop rather than returning infeasible.
-            m.full_coverage.deactivate()
-            if END_SOC_MODE in ('start', 'reserve'):
-                _seed_do_nothing()
-            spent = time.time() - began
-            budget = TIME_LIMIT_SECONDS - spent - COST_RESERVE_SECONDS
-            result = _solve(budget, warmstart=END_SOC_MODE in ('start', 'reserve'))
+            # The label a block is filed under is the calendar day it departs
+            # in, which is what the results view reconstructs its clock time
+            # from.
+            for r, (start, _) in placed.items():
+                calendar_day = (w0 + start) // WINDOW
+                for b in range(B):
+                    assignments.append({
+                        'day': calendar_day, 'bus': b, 'route': r,
+                        'assignment': 1 if b in out['served'][r] else 0})
+            for r in out['unserved']:
+                calendar_day = (w0 + placed[r][0]) // WINDOW
+                missed.setdefault(calendar_day, []).append(block_labels[r])
 
-            if result.best_feasible_objective is None:
-                if result.termination_condition == TerminationCondition.infeasible:
-                    return "Model is infeasible", startTimeNum
-                return f"No solution found within {TIME_LIMIT_SECONDS}s", startTimeNum
-
-        result.solution_loader.load_vars()
-
-        # Pass two holds that coverage fixed and minimises electricity alone, so
-        # the gap it reports is a gap on cost.
-        # Hold how many blocks get covered, but let cost decide which ones.
-        # Fixing each choice would lock in whichever maximal set the first pass
-        # happened to land on, and with more blocks than buses there are many.
-        unserved_count = sum(
-            round(pyo.value(m.unserved[d, r])) for d, r in coverage_pairs
-        )
-        m.coverage_level = pyo.Constraint(
-            expr=sum(m.unserved[d, r] for d, r in coverage_pairs)
-            <= unserved_count)
-
-        m.coverage_obj.deactivate()
-        m.cost_obj.activate()
-
-        remaining = TIME_LIMIT_SECONDS - (time.time() - began)
-        cost_result = _solve(remaining, warmstart=True)
-        terminal = cost_result.termination_condition
         sol_time = time.time() - began
 
-        # The variables still hold the coverage pass's schedule, and
-        # load_solution is off, so a cost pass that runs out of time leaves
-        # them alone. That schedule is valid - just not cost-optimised - and
-        # is a far better answer than discarding the whole run.
-        cost_optimised = cost_result.best_feasible_objective is not None
-        if cost_optimised:
-            result = cost_result
-            result.solution_loader.load_vars()
-
-        # Recomputed from the schedule rather than read off an objective,
-        # which is the coverage count in one pass and cost in the other.
-        obj_val = 0.25 * sum(
-            gridPowPrice[t] * sum(pyo.value(m.gridPowToB[b, t]) for b in range(B))
-            for t in range(T)
-        )
-
-        missed = {}
-        for d, r in coverage_pairs:
-            if pyo.value(m.unserved[d, r]) > 0.5:
-                missed.setdefault(d, []).append(block_labels[r])
-
-        asked = len(coverage_pairs)
-        unfilled = sum(len(v) for v in missed.values())
-        if unfilled:
-            per_day = '; '.join(
-                f"day {d + 1}: {', '.join(missed[d])}" for d in sorted(missed))
-            unserved_note = (
-                f" - covered {asked - unfilled} of {asked} block-days, "
-                f"no bus for {per_day}"
-            )
-        else:
-            unserved_note = f" - all {asked} block-days covered"
-        
-
-        #####################################
-        # Exporting results
-        #####################################
         path = os.path.join(os.getcwd(), "chargeopt", "outputs")
         os.makedirs(path, exist_ok=True)
 
-        def genDF(name, var):
-            data = [
-                {'time': t, 'bus': b, name: pyo.value(var[b, t])}
-                for t in range(T) for b in range(B)
-            ]
-            df = pd.DataFrame(data)
-            return df.set_index(['bus', 'time']) if len(df) > 0 else None
-
-        twodim_df = pd.concat(
-            [genDF('powerCB', m.powerCB), genDF('eB', m.eB),
-             genDF('chargerUse', m.chargerUse)],
-            axis=1, join='inner',
-        )
-        twodim_df.to_csv(f'{path}/{filename}.csv')
-
-        assignment_df = pd.DataFrame([
-            {'day': d, 'bus': b, 'route': r,
-             'assignment': pyo.value(m.assignment[b, d, r])}
-            for d in range(D) for b in range(B) for r in range(R)
-        ]).set_index(['bus', 'day', 'route'])
-        assignment_df.to_csv(f'{path}/assignments_{filename}.csv')
+        pd.DataFrame(schedule).set_index(['bus', 'time']).to_csv(f'{path}/{filename}.csv')
+        pd.DataFrame(assignments).set_index(['bus', 'day', 'route']).to_csv(
+            f'{path}/assignments_{filename}.csv')
 
         results_file = f'{path}/results.csv'
         results_df = pd.DataFrame(columns=[
@@ -596,35 +439,21 @@ class ChargeOpt:
             results_df = pd.concat([pd.read_csv(results_file), results_df], ignore_index=True)
         except FileNotFoundError:
             pass
-
-        new_row = pd.DataFrame([{
-            "case_name": filename,
-            "numBuses": B,
-            "ebMaxKwh": eB_max,
-            "numChargers": numChargers,
-            "chargerPower": pCB_ub,
-            "routes": str(routes),
-            "gridMaxPower": gridKWH,
-            "obj_val": obj_val,
-            "sol_time": round(sol_time, 2),
+        results_df = pd.concat([results_df, pd.DataFrame([{
+            "case_name": filename, "numBuses": B, "ebMaxKwh": eB_max,
+            "numChargers": numChargers, "chargerPower": pCB_ub, "routes": str(routes),
+            "gridMaxPower": gridKWH, "obj_val": cost, "sol_time": round(sol_time, 2),
             "date": datetime.now().strftime("%m/%d/%Y"),
-        }])
-        results_df = pd.concat([results_df, new_row], ignore_index=True)
+        }])], ignore_index=True)
         results_df.to_csv(results_file, index=False)
 
-        if not cost_optimised:
-            status = (
-                f"Schedule found, but cost was still being optimised at "
-                f"{TIME_LIMIT_SECONDS}s"
-            )
-        elif terminal == TerminationCondition.optimal:
-            status = "Optimal solution found"
+        unfilled = sum(len(v) for v in missed.values())
+        if unfilled:
+            per_day = '; '.join(f"day {d}: {', '.join(missed[d])}" for d in sorted(missed))
+            covered = f" - covered {asked - unfilled} of {asked} block-days, no bus for {per_day}"
         else:
-            bound = result.best_objective_bound
-            gap = abs(obj_val - bound) / max(abs(obj_val), 1e-9) if bound is not None else None
-            status = (
-                f"Stopped at {TIME_LIMIT_SECONDS}s with a feasible solution"
-                + (f" ({gap:.1%} gap)" if gap is not None else "")
-            )
+            covered = f" - all {asked} block-days covered"
 
-        return status + unserved_note + excluded_note, startTimeNum
+        status = ("Optimal solution found" if all_optimal
+                  else f"Stopped at {TIME_LIMIT_SECONDS}s with a feasible solution")
+        return status + covered + excluded_note, startTimeNum
