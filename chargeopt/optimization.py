@@ -358,6 +358,9 @@ class ChargeOpt:
         # anything: the bus would have to leave holding more than it can store.
         too_long = [r for r in range(R) if eRoute[r] >= eB_range]
         excluded_note = ''
+        # Route indices are reported against the block list the caller handed
+        # in, which still holds the excluded ones.
+        original_index = list(range(R))
         if too_long:
             names = ', '.join(block_labels[r] for r in too_long)
             keep = [r for r in range(R) if r not in too_long]
@@ -368,6 +371,7 @@ class ChargeOpt:
             arrival = np.asarray(arrival)[keep]
             eRoute = np.asarray(eRoute)[keep]
             block_labels = [block_labels[r] for r in keep]
+            original_index = keep
             R = len(keep)
             excluded_note = f" - beyond range on one charge: {names}"
 
@@ -415,7 +419,7 @@ class ChargeOpt:
                 calendar_day = (w0 + start) // WINDOW
                 for b in range(B):
                     assignments.append({
-                        'day': calendar_day, 'bus': b, 'route': r,
+                        'day': calendar_day, 'bus': b, 'route': original_index[r],
                         'assignment': 1 if b in out['served'][r] else 0})
             for r in out['unserved']:
                 calendar_day = (w0 + placed[r][0]) // WINDOW
