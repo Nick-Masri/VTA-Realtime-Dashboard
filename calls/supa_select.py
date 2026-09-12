@@ -13,6 +13,18 @@ from calls.supabase_mock import (
 # Rows older than this count as "not live" when DEMO_MODE is left on auto.
 DEMO_STALE_AFTER = timedelta(hours=24)
 
+# How far back history queries reach. The soc table gains a row per bus per
+# transmission, so an unfiltered select("*") pulls every reading ever recorded
+# and intermittently exceeds the client's socket timeout - the source of
+# "Supabase unavailable (The read operation timed out)". PostgREST also caps a
+# response, so an unbounded query was never returning the whole table anyway.
+HISTORY_WINDOW = timedelta(days=60)
+MAX_ROWS = 20000
+
+
+def _since():
+    return (pd.Timestamp.now(tz='UTC') - HISTORY_WINDOW).isoformat()
+
 
 def _demo_setting():
     try:
@@ -71,7 +83,9 @@ def _fetch(build_query):
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
 def supabase_blocks(active=True):
-    data = _fetch(lambda sb: sb.table('block_history').select("*").order("created_at", desc=True))
+    data = _fetch(lambda sb: sb.table('block_history').select("*")
+                  .gte('created_at', _since())
+                  .order("created_at", desc=True).limit(MAX_ROWS))
     if _use_demo(data):
         _demo_notice()
         return mock_blocks(active=active)
@@ -110,7 +124,9 @@ def supabase_soc():
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_active_location():
-    data = _fetch(lambda sb: sb.table('location').select("*").order("created_at", desc=True))
+    # Only the newest fix per coach is used, so a small page is plenty.
+    data = _fetch(lambda sb: sb.table('location').select("*")
+                  .order("created_at", desc=True).limit(500))
     if _use_demo(data):
         return mock_active_location()
     df = pd.DataFrame(data)
@@ -127,9 +143,13 @@ def supabase_active_location():
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=60))
 def supabase_soc_history(vehicle=None):
     if vehicle is None:
-        data = _fetch(lambda sb: sb.table('soc').select("*").order("created_at", desc=True))
+        data = _fetch(lambda sb: sb.table('soc').select("*")
+                      .gte('created_at', _since())
+                      .order("created_at", desc=True).limit(MAX_ROWS))
     else:
-        data = _fetch(lambda sb: sb.table('soc').select("*").eq('vehicle', vehicle).order("created_at", desc=True))
+        data = _fetch(lambda sb: sb.table('soc').select("*").eq('vehicle', vehicle)
+                      .gte('created_at', _since())
+                      .order("created_at", desc=True).limit(MAX_ROWS))
 
     if _use_demo(data):
         return mock_soc_history(vehicle=vehicle)
