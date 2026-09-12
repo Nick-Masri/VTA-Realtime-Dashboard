@@ -46,7 +46,7 @@ def mock_stations():
             'stationName': name,
             'Address': address,
             'Status': 'INUSE' if charging else 'AVAILABLE',
-            'networkStatus': 'Connected',
+            'networkStatus': 'Reachable',
             'Voltage': round(float(rng.uniform(495, 505)), 1) if charging else 0.0,
             'Current': round(float(rng.uniform(180, 240)), 1) if charging else 0.0,
             'Power': round(float(rng.uniform(90, 125)), 1) if charging else 0.0,
