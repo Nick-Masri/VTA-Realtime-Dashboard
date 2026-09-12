@@ -1,6 +1,6 @@
 import pickle
 import warnings
-from datetime import date
+from datetime import date, timedelta
 
 import numpy as np
 import pandas as pd
@@ -54,9 +54,16 @@ def predict_batch(pairs):
     Returns a DataFrame of coach, miles, pred, low, high - all in percent of
     pack capacity.
     """
-    pairs = list(pairs)
+    pairs = tuple((float(coach), float(miles)) for coach, miles in pairs)
     if not pairs:
         return pd.DataFrame(columns=['coach', 'miles', 'pred', 'low', 'high'])
+    return _predict_batch(pairs)
+
+
+@st.cache_data(show_spinner=False, ttl=timedelta(minutes=30))
+def _predict_batch(pairs):
+    """Cached so a rerun triggered elsewhere in the app does not re-score the
+    whole fleet grid - the energy tab alone asks for 300-odd predictions."""
 
     weather = get_todays_weather()
     today = date.today()

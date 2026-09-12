@@ -20,6 +20,8 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 # fleet lands around 110-125s but varies with machine load - one run in five
 # reached 180s with nothing - so the ceiling carries real headroom.
 TIME_LIMIT_SECONDS = 300
+# Share of the budget given to deciding coverage before cost is optimised.
+COVERAGE_TIME_LIMIT = 90
 MIP_GAP = 0.03
 
 # The binding difficulty here is finding any feasible schedule, not closing the
@@ -49,11 +51,6 @@ CHANGE_CAP_SCOPE = 'day'
 END_SOC_MODE = 'start'
 END_SOC_FRACTION = 0.8
 
-# When some block cannot be covered by any selected bus, drop it and solve for
-# the rest rather than returning nothing. The dropped blocks are named in the
-# status so the schedule is never quietly partial.
-DROP_UNCOVERABLE_BLOCKS = True
-
 # Statuses that mean a schedule was written. Callers test with is_solved rather
 # than comparing strings, so the wording can carry caveats - a dropped block, a
 # remaining gap - without the results view falling through to nothing.
@@ -66,58 +63,14 @@ def is_solved(status):
 
 def is_partial(status):
     """Solved, but with something the operator needs to know about."""
-    return is_solved(status) and ('dropped' in str(status) or str(status).startswith('Stopped'))
+    text = str(status)
+    return is_solved(status) and ('unserved' in text or text.startswith('Stopped'))
 
 HIGHS_OPTIONS = {
     'mip_heuristic_effort': 0.5,
     'mip_detect_symmetry': True,
     'presolve': 'on',
 }
-
-
-def _can_cover(start_kwh, route_kwh, eB_min, eB_max):
-    """Whether a bus holding start_kwh could take a route needing route_kwh.
-
-    A horizon-wide transition cap gives each bus a single charging window. If
-    the end-of-horizon target needs charge the bus does not already have, that
-    window is spent restoring it after the route, so the bus has to leave on
-    what it is holding. Under an end target of the reserve floor nothing has to
-    be restored - eB never drops below it anyway - which frees the window for a
-    pre-route top-up and leaves only the pack size binding, as with per-day
-    windows.
-    """
-    window_spent_on_end_target = (
-        CHANGE_CAP_SCOPE == 'horizon' and END_SOC_MODE in ('start', 'fraction')
-    )
-    if window_spent_on_end_target:
-        return start_kwh >= eB_min + route_kwh
-    return eB_max >= eB_min + route_kwh
-
-
-def _max_matching(capable):
-    """Largest set of blocks assignable to distinct buses.
-
-    Each bus takes at most one route per day, so coverage is a bipartite
-    matching rather than a per-block test: a block only counts as coverable if
-    a bus is free for it once the other blocks are served too.
-    """
-    match_bus = {}
-    match_route = {}
-
-    def assign(route, seen):
-        for bus in capable[route]:
-            if bus in seen:
-                continue
-            seen.add(bus)
-            if bus not in match_bus or assign(match_bus[bus], seen):
-                match_bus[bus] = route
-                match_route[route] = bus
-                return True
-        return False
-
-    for route in sorted(capable, key=lambda r: len(capable[r])):
-        assign(route, set())
-    return match_route
 
 
 def _end_target(soc, eB_max, eB_min):
@@ -197,41 +150,6 @@ class ChargeOpt:
                 f"{', '.join(too_low)}"
             ), startTimeNum
 
-        #####################################
-        # Coverage screen
-        #####################################
-        # Every selected block has to be run by some bus, so one block nothing
-        # can take makes the whole model infeasible. Screening first turns that
-        # into a named block instead of a solver shrug.
-        start_kwh = {b: eB_max * start_soc[b] for b in range(B)}
-        capable = {
-            r: {b for b in range(B)
-                if _can_cover(start_kwh[b], eRoute[r], eB_min, eB_max)}
-            for r in range(R)
-        }
-        matched = _max_matching(capable)
-        uncoverable = [r for r in range(R) if r not in matched]
-
-        dropped_note = ''
-        if uncoverable:
-            names = ', '.join(block_labels[r] for r in uncoverable)
-            if not DROP_UNCOVERABLE_BLOCKS:
-                return (
-                    f"No bus can cover block(s) {names} on its starting charge"
-                ), startTimeNum
-
-            keep = [r for r in range(R) if r in matched]
-            if not keep:
-                return (
-                    "None of the selected blocks can be covered by these buses"
-                ), startTimeNum
-
-            departure = np.asarray(departure)[keep]
-            arrival = np.asarray(arrival)[keep]
-            eRoute = np.asarray(eRoute)[keep]
-            R = len(keep)
-            dropped_note = f" - dropped block(s) {names}"
-
         tDep = np.zeros((R, D), dtype=int)
         tRet = np.zeros((R, D), dtype=int)
         for d in range(D):
@@ -256,6 +174,10 @@ class ChargeOpt:
         m.D = pyo.RangeSet(0, D - 1)
         m.R = pyo.RangeSet(0, R - 1)
         m.OT = pyo.Set(initialize=optimized_time, ordered=True)
+        # Coverage has always been asked of the middle day only; the outer days
+        # are lookahead.
+        COVERED_DAYS = pyo.Set(initialize=[1], ordered=True)
+        m.COVERED_DAYS = COVERED_DAYS
 
         m.powerCB = pyo.Var(m.B, m.T, bounds=(0, pCB_ub))
         m.gridPowToB = pyo.Var(m.B, m.T, bounds=(0, gridKWH))
@@ -412,9 +334,15 @@ class ChargeOpt:
                     for t in range(int(tDep[r][d]), int(tRet[r][d]) + 1):
                         m.coverage.add(m.chargerUse[b, t] + m.assignment[b, d, r] <= 1)
 
+        # Coverage is a preference, not a requirement. Demanding every block be
+        # run made the whole model infeasible whenever one block had no bus that
+        # could take it, which told the operator nothing. The model now chooses
+        # what to leave unserved and pays for it in the objective.
+        m.unserved = pyo.Var(COVERED_DAYS, m.R, domain=pyo.Binary)
         m.route_covered = pyo.Constraint(
-            m.R, pyo.RangeSet(1, 1),
-            rule=lambda m, r, d: sum(m.assignment[b, d, r] for b in m.B) == 1)
+            m.R, COVERED_DAYS,
+            rule=lambda m, r, d: sum(m.assignment[b, d, r] for b in m.B)
+            + m.unserved[d, r] == 1)
         m.one_route_each = pyo.Constraint(
             m.B, m.D,
             rule=lambda m, b, d: sum(m.assignment[b, d, r] for r in m.R) <= 1)
@@ -429,43 +357,94 @@ class ChargeOpt:
         #####################################
         # Objective
         #####################################
-        m.obj = pyo.Objective(
-            expr=0.25 * sum(
-                gridPowPrice[t] * sum(m.gridPowToB[b, t] for b in range(B))
-                for t in range(T)
-            ),
+        energy_cost_expr = 0.25 * sum(
+            gridPowPrice[t] * sum(m.gridPowToB[b, t] for b in range(B))
+            for t in range(T)
+        )
+
+        # Two objectives, used in turn. Combining them with a penalty made both
+        # harder: the relaxation serves a block fractionally, so the bound kept
+        # half the penalty and the gap described that rather than the schedule,
+        # while the cost term slowed the search for full coverage.
+        m.coverage_obj = pyo.Objective(
+            expr=sum(m.unserved[d, r] for d in COVERED_DAYS for r in range(R)),
             sense=pyo.minimize,
         )
+        m.cost_obj = pyo.Objective(expr=energy_cost_expr, sense=pyo.minimize)
+        m.cost_obj.deactivate()
+
+        # Insisting on full coverage is a constraint the solver can propagate,
+        # where minimising the count is a target it has to search toward - so
+        # the ordinary case is markedly faster this way round. Relaxed below
+        # only if it turns out nothing can serve every block.
+        m.full_coverage = pyo.Constraint(
+            expr=sum(m.unserved[d, r] for d in COVERED_DAYS for r in range(R)) == 0)
 
         #####################################
         # Solve
         #####################################
-        solver = Highs()
-        solver.config.time_limit = TIME_LIMIT_SECONDS
-        solver.config.mip_gap = MIP_GAP
-        solver.config.load_solution = False
-        solver.config.stream_solver = False
-        for option, value in HIGHS_OPTIONS.items():
-            solver.highs_options[option] = value
+        def _solve(limit):
+            solver = Highs()
+            solver.config.time_limit = max(limit, 10)
+            solver.config.mip_gap = MIP_GAP
+            solver.config.load_solution = False
+            solver.config.stream_solver = False
+            for option, value in HIGHS_OPTIONS.items():
+                solver.highs_options[option] = value
+            return solver.solve(m)
 
         began = time.time()
-        result = solver.solve(m)
-        sol_time = time.time() - began
 
-        terminal = result.termination_condition
-        has_solution = result.best_feasible_objective is not None
+        # Pass one: every block served.
+        result = _solve(COVERAGE_TIME_LIMIT)
 
-        if terminal == TerminationCondition.infeasible:
-            return "Model is infeasible" + dropped_note, startTimeNum
-        if not has_solution:
-            if terminal == TerminationCondition.maxTimeLimit:
-                return (
-                    f"No solution found within {TIME_LIMIT_SECONDS}s" + dropped_note
-                ), startTimeNum
-            return "Model Error" + dropped_note, startTimeNum
+        if result.best_feasible_objective is None:
+            # Nothing covers every block, or not within the budget. Let the
+            # model choose what to drop rather than returning infeasible.
+            m.full_coverage.deactivate()
+            spent = time.time() - began
+            result = _solve(min(COVERAGE_TIME_LIMIT, TIME_LIMIT_SECONDS - spent))
+
+            if result.best_feasible_objective is None:
+                if result.termination_condition == TerminationCondition.infeasible:
+                    return "Model is infeasible", startTimeNum
+                return f"No solution found within {TIME_LIMIT_SECONDS}s", startTimeNum
 
         result.solution_loader.load_vars()
-        obj_val = float(result.best_feasible_objective)
+
+        # Pass two holds that coverage fixed and minimises electricity alone, so
+        # the gap it reports is a gap on cost.
+        for d in COVERED_DAYS:
+            for r in range(R):
+                m.unserved[d, r].fix(round(pyo.value(m.unserved[d, r])))
+
+        m.coverage_obj.deactivate()
+        m.cost_obj.activate()
+
+        remaining = TIME_LIMIT_SECONDS - (time.time() - began)
+        result = _solve(remaining)
+        terminal = result.termination_condition
+        sol_time = time.time() - began
+
+        if result.best_feasible_objective is None:
+            return "Model Error", startTimeNum
+
+        result.solution_loader.load_vars()
+
+        # best_feasible_objective carries the unserved penalty, which is a
+        # solver device rather than money. Report what the electricity costs.
+        obj_val = 0.25 * sum(
+            gridPowPrice[t] * sum(pyo.value(m.gridPowToB[b, t]) for b in range(B))
+            for t in range(T)
+        )
+
+        unserved = [
+            block_labels[r] for d in COVERED_DAYS for r in range(R)
+            if pyo.value(m.unserved[d, r]) > 0.5
+        ]
+        unserved_note = (
+            f" - no bus available for {', '.join(unserved)}" if unserved else ''
+        )
 
         #####################################
         # Exporting results
@@ -530,4 +509,4 @@ class ChargeOpt:
                 + (f" ({gap:.1%} gap)" if gap is not None else "")
             )
 
-        return status + dropped_note, startTimeNum
+        return status + unserved_note, startTimeNum
