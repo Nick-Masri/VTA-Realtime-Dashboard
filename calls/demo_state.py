@@ -1,9 +1,15 @@
 """Tracks which parts of the portal are running on simulated data.
 
-Flags are sticky for the life of the process. Streamlit replays cached
-functions without re-running their bodies, so a flag cleared between reruns
-would flicker; for a disclosure the safe direction is to keep saying
-"simulated" rather than to quietly stop saying it.
+The flags live in a cache_resource store rather than in module globals.
+Every mark() below is called from inside an @st.cache_data function body,
+which Streamlit skips entirely on a cache hit, so the flags have to share
+the data cache's lifetime. Module globals do not: Streamlit drops a changed
+source file from sys.modules and re-imports it while cached values keyed on
+unchanged function source survive, which reset the flags underneath the
+cached simulated data. The portal then served mock telemetry with the
+disclosure switched off, captioned "Last accessed Proterra and Swiftly
+data" - the opposite of what it was showing. A push that changes any file
+is enough to trigger it; the file need not be this one.
 """
 
 import streamlit as st
@@ -14,36 +20,38 @@ _LABELS = {
     'weather': 'weather',
 }
 
-_state = {key: False for key in _LABELS}
+
+@st.cache_resource(show_spinner=False)
+def _store():
+    return {'state': {key: False for key in _LABELS}, 'issues': []}
+
+
+def mark(source):
+    _store()['state'][source] = True
+
 
 # Integration failures worth showing the operator. Collected rather than
 # printed at the call site: those sit inside cached functions, so Streamlit
 # replays them once per call site per rerun, which is how the same "Supabase
 # unavailable" line ended up on the page twice.
-_issues = []
-
-
-def mark(source):
-    _state[source] = True
-
-
 def note_issue(message):
     message = str(message)
-    if message not in _issues:
-        _issues.append(message)
+    issues = _store()['issues']
+    if message not in issues:
+        issues.append(message)
 
 
 def render_issues():
-    for message in _issues:
+    for message in _store()['issues']:
         st.warning(message)
 
 
 def simulated_sources():
-    return [key for key, on in _state.items() if on]
+    return [key for key, on in _store()['state'].items() if on]
 
 
 def any_simulated():
-    return any(_state.values())
+    return any(_store()['state'].values())
 
 
 def render_banner():
