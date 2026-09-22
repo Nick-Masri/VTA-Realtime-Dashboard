@@ -11,6 +11,7 @@ import yaml
 from pyomo.contrib.appsi.base import TerminationCondition
 from pyomo.contrib.appsi.solvers import Highs
 
+from chargeopt.baseline import charge_on_arrival
 from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -30,6 +31,9 @@ MIP_GAP = 0.03
 # split across a boundary the way a midnight-to-midnight day would split it.
 WINDOW = 96
 DAYS = 3
+# A monthly demand charge is set by a single peak, so a plan meant to repeat
+# daily carries a thirtieth of it per day.
+DAYS_PER_MONTH = 30
 # Windows are anchored to the operating day rather than to the moment the plan
 # is built. Anchored to "now", a block starting more than a few hours out has
 # its return fall past the window's end and gets dropped; anchored to the small
@@ -121,7 +125,7 @@ def _window_blocks(w0, departure, arrival, frozen):
 
 def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, frozen=0):
     """One rolling day. Returns the schedule, or None if nothing was found."""
-    B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt = sizes
+    B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt, eff, demand_rate = sizes
     runnable = sorted(placed)
 
     m = pyo.ConcreteModel()
@@ -129,23 +133,21 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
     m.I = pyo.RangeSet(0, WINDOW - 1)
     m.R = pyo.Set(initialize=runnable, ordered=True)
 
+    # powerCB is what reaches the pack; gridPowToB is what the meter sees.
     m.powerCB = pyo.Var(m.B, m.I, bounds=(0, pCB_ub))
-    m.gridPowToB = pyo.Var(m.B, m.I, bounds=(0, gridKWH))
+    m.gridPowToB = pyo.Var(m.B, m.I, bounds=(0, pCB_ub / eff))
     m.eB = pyo.Var(m.B, m.I, bounds=(eB_min, eB_max))
     m.chargerUse = pyo.Var(m.B, m.I, domain=pyo.Binary)
     m.T1 = pyo.Var(m.B, m.I, domain=pyo.Binary)
     m.T2 = pyo.Var(m.B, m.I, domain=pyo.Binary)
     m.change = pyo.Var(m.B, m.I, domain=pyo.Binary)
     m.charging = pyo.Var(m.B, domain=pyo.Binary)
-    m.tracker = pyo.Var(m.B, m.I, domain=pyo.Binary)
-    m.tracker_b = pyo.Var(m.B, m.I, domain=pyo.Binary)
     m.assignment = pyo.Var(m.B, m.R, domain=pyo.Binary)
     m.unserved = pyo.Var(m.R, domain=pyo.Binary)
+    # Highest depot draw over the window, priced in the cost pass so the plan
+    # flattens its own peak rather than only chasing cheap quarters.
+    m.peak = pyo.Var(bounds=(0, gridKWH))
 
-    M_fill = eB_range
-    M_power = pCB_ub
-    M_low = pCB_ub * dt
-    M_high = eB_range - pCB_ub * dt
     later = pyo.RangeSet(1, WINDOW - 1)
 
     m.change_link = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
@@ -166,28 +168,22 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
                                  sum(m.chargerUse[b, i] for i in m.I) >= 4 * m.charging[b])
     m.daily_max = pyo.Constraint(m.B, rule=lambda m, b:
                                  sum(m.chargerUse[b, i] for i in m.I) <= WINDOW * m.charging[b])
+    # Power is free between zero and rated whenever the bus is plugged in.
+    # It used to be pinned at rated output by a pair of big-M rows selected by
+    # a tracker binary - the one non-linear piece of the original Gurobi model.
+    # That forbade the only lever that actually shaves a peak, and cost two
+    # binaries per bus per quarter to enforce.
     m.power_gate = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
                                   m.powerCB[b, i] <= pCB_ub * m.chargerUse[b, i])
-    m.fill_rule = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                 m.powerCB[b, i] * dt
-                                 + M_fill * (1 - m.chargerUse[b, i])
-                                 + M_fill * (1 - m.tracker[b, i])
-                                 >= eB_max - m.eB[b, i])
-    m.full_power_rule = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                       m.powerCB[b, i] + M_power * (1 - m.chargerUse[b, i])
-                                       >= pCB_ub * m.tracker_b[b, i])
-    m.tracker_low = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                   (eB_max - m.eB[b, i]) >= (pCB_ub * dt) - M_low * m.tracker[b, i])
-    m.tracker_high = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                    (eB_max - m.eB[b, i]) <= (pCB_ub * dt) + M_high * m.tracker_b[b, i])
-    m.tracker_pick = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                    m.tracker[b, i] + m.tracker_b[b, i] == 1)
     m.charger_count = pyo.Constraint(m.I, rule=lambda m, i:
                                      sum(m.chargerUse[b, i] for b in m.B) <= numChargers)
     m.grid_total = pyo.Constraint(m.I, rule=lambda m, i:
                                   sum(m.gridPowToB[b, i] for b in m.B) <= gridKWH)
+    # The depot is billed for what it draws; the pack receives eff of it.
     m.charger_supply = pyo.Constraint(m.B, m.I, rule=lambda m, b, i:
-                                      m.powerCB[b, i] == m.gridPowToB[b, i])
+                                      m.powerCB[b, i] == eff * m.gridPowToB[b, i])
+    m.peak_def = pyo.Constraint(m.I, rule=lambda m, i:
+                                sum(m.gridPowToB[b, i] for b in m.B) <= m.peak)
 
     returns_at = {}
     departs_at = {}
@@ -233,12 +229,16 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
                                           sum(m.assignment[b, r] for r in m.R) <= 1)
         m.full_coverage = pyo.Constraint(expr=sum(m.unserved[r] for r in runnable) == 0)
 
-    energy_cost = 0.25 * sum(prices[i] * sum(m.gridPowToB[b, i] for b in range(B))
-                             for i in range(WINDOW))
+    energy_cost = dt * sum(prices[i] * sum(m.gridPowToB[b, i] for b in range(B))
+                           for i in range(WINDOW))
     m.coverage_obj = pyo.Objective(
         expr=sum(m.unserved[r] for r in runnable) if runnable else 0,
         sense=pyo.minimize)
-    m.cost_obj = pyo.Objective(expr=energy_cost, sense=pyo.minimize)
+    # A monthly demand charge is set by one peak, so a repeating daily plan
+    # carries a thirtieth of it per day. At that weight the peak term and the
+    # energy term land in the same order of magnitude and genuinely trade off.
+    m.cost_obj = pyo.Objective(expr=energy_cost + demand_rate * m.peak,
+                               sense=pyo.minimize)
     m.cost_obj.deactivate()
 
     def run(limit, warmstart=False):
@@ -253,17 +253,15 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
         return solver.solve(m)
 
     def seed_parked():
+        m.peak.set_value(0)
         for b in range(B):
             held = eB_max * soc_at_start[b]
-            near_full = (eB_max - held) <= pCB_ub * dt
             for i in range(WINDOW):
                 m.eB[b, i].set_value(held)
                 m.powerCB[b, i].set_value(0)
                 m.gridPowToB[b, i].set_value(0)
                 for var in (m.chargerUse, m.T1, m.T2, m.change):
                     var[b, i].set_value(0)
-                m.tracker[b, i].set_value(1 if near_full else 0)
-                m.tracker_b[b, i].set_value(0 if near_full else 1)
             m.charging[b].set_value(0)
             for r in runnable:
                 m.assignment[b, r].set_value(0)
@@ -303,8 +301,13 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
         for b in range(B):
             rows.append({'time': w0 + i, 'bus': b,
                          'powerCB': pyo.value(m.powerCB[b, i]),
+                         'gridPowToB': pyo.value(m.gridPowToB[b, i]),
                          'eB': pyo.value(m.eB[b, i]),
                          'chargerUse': pyo.value(m.chargerUse[b, i])})
+
+    energy = dt * sum(prices[i] * sum(pyo.value(m.gridPowToB[b, i]) for b in range(B))
+                      for i in range(WINDOW))
+    peak_kw = pyo.value(m.peak)
 
     return {
         'rows': rows,
@@ -312,8 +315,11 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
         'served': {r: [b for b in range(B) if pyo.value(m.assignment[b, r]) > 0.5]
                    for r in runnable},
         'unserved': [r for r in runnable if pyo.value(m.unserved[r]) > 0.5],
-        'cost': 0.25 * sum(prices[i] * sum(pyo.value(m.gridPowToB[b, i]) for b in range(B))
-                           for i in range(WINDOW)),
+        'energy_cost': energy,
+        'peak_kw': peak_kw,
+        'energy_kwh': dt * sum(pyo.value(m.gridPowToB[b, i])
+                               for b in range(B) for i in range(WINDOW)),
+        'cost': energy + demand_rate * peak_kw,
         'optimal': optimal,
     }
 
@@ -323,6 +329,9 @@ class ChargeOpt:
         self.routes = routes
         self.chargers = chargers
         self.startTime = datetime.now()
+        # Filled in by solve(); None means no comparison is available, which
+        # every early return below leaves in place.
+        self.summary = None
 
     def solve(self):
         startTimeNum = time_to_quarter(self.startTime.strftime('%I:%M %p'))
@@ -347,6 +356,9 @@ class ChargeOpt:
         numChargers = len(self.chargers)
         pCB_ub = config["chargerPower"]
         gridKWH = config['gridMaxPower']
+        eff = config['chargerEff']
+        demand_month = config.get('demandChargePerKw', 0.0)
+        demand_rate = demand_month / DAYS_PER_MONTH
         dt = 0.25
 
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
@@ -383,14 +395,22 @@ class ChargeOpt:
                     f"{', '.join(too_low)}"), startTimeNum
 
         prices = init_grid_pricing(DAYS + 2)
-        sizes = (B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt)
+        sizes = (B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt,
+                 eff, demand_rate)
 
         schedule = []
         assignments = []
         missed = {}
         asked = 0
         cost = 0.0
+        energy_cost = 0.0
+        energy_kwh = 0.0
+        peak_kw = 0.0
         all_optimal = True
+        # The baseline runs from the same opening charge and the same duties,
+        # so it has to be captured before the loop rolls soc forward.
+        soc_at_start = dict(soc)
+        windows = []
         began = time.time()
 
         for day in range(DAYS):
@@ -409,7 +429,12 @@ class ChargeOpt:
 
             schedule.extend(out['rows'])
             cost += out['cost']
+            energy_cost += out['energy_cost']
+            energy_kwh += out['energy_kwh']
+            # The bill is set by the worst quarter, not the sum of the days.
+            peak_kw = max(peak_kw, out['peak_kw'])
             all_optimal = all_optimal and out['optimal']
+            windows.append((w0, frozen, placed, out['served']))
             soc = out['end_soc']
 
             # The label a block is filed under is the calendar day it departs
@@ -426,6 +451,44 @@ class ChargeOpt:
                 missed.setdefault(calendar_day, []).append(block_labels[r])
 
         sol_time = time.time() - began
+
+        base = charge_on_arrival(soc_at_start, windows, eRoute, prices, sizes, WINDOW)
+        # Monthly figures assume the planned days repeat. Energy scales with
+        # the days; the demand charge is levied once on the highest peak.
+        def _monthly(energy_per_day, peak):
+            return energy_per_day * DAYS_PER_MONTH + demand_month * peak
+
+        # Uncontrolled charging fills every pack, while the plan charges only
+        # to its end-of-horizon target, so the headline gap is partly a
+        # difference in energy bought. The rate paid per kWh is the like-for-
+        # like number and is what the time-of-use shifting actually earns.
+        def _rate(cost_total, kwh):
+            return cost_total / kwh if kwh > 0 else 0.0
+
+        optimized_daily = energy_cost / DAYS
+        baseline_daily = base['energy_cost'] / DAYS
+        self.summary = {
+            'demand_charge_per_kw': demand_month,
+            'optimized': {
+                'energy_cost_day': optimized_daily,
+                'peak_kw': peak_kw,
+                'energy_kwh': energy_kwh,
+                'cost_per_kwh': _rate(energy_cost, energy_kwh),
+                'monthly': _monthly(optimized_daily, peak_kw),
+            },
+            'baseline': {
+                'energy_cost_day': baseline_daily,
+                'peak_kw': base['peak_kw'],
+                'energy_kwh': base['energy_kwh'],
+                'cost_per_kwh': _rate(base['energy_cost'], base['energy_kwh']),
+                'monthly': _monthly(baseline_daily, base['peak_kw']),
+            },
+        }
+        saved = self.summary['baseline']['monthly'] - self.summary['optimized']['monthly']
+        self.summary['monthly_saving'] = saved
+        self.summary['monthly_saving_pct'] = (
+            100 * saved / self.summary['baseline']['monthly']
+            if self.summary['baseline']['monthly'] > 0 else 0.0)
 
         path = os.path.join(os.getcwd(), "chargeopt", "outputs")
         os.makedirs(path, exist_ok=True)
