@@ -336,10 +336,13 @@ def _solve_window(w0, soc_at_start, placed, energy, prices, budget, sizes, froze
     }
 
 class ChargeOpt:
-    def __init__(self, buses, routes, chargers):
+    def __init__(self, buses, routes, chargers, scenario=None):
         self.buses = buses
         self.routes = routes
         self.chargers = chargers
+        # Per-run overrides of config.yml, so "what if we added two chargers"
+        # is a question the tool answers rather than a file edit.
+        self.scenario = scenario or {}
         self.startTime = datetime.now()
         # Filled in by solve(); None means no comparison is available, which
         # every early return below leaves in place.
@@ -362,16 +365,27 @@ class ChargeOpt:
             config = yaml.safe_load(file)
 
         filename = f'chargeopt_{datetime.now().strftime("%m-%d-%Y_%H-%M-%S")}'
-        eB_max = config["ebMaxKwh"]
+        def setting(key, default):
+            # An explicit zero is a real answer, so None is the only fallback.
+            value = self.scenario.get(key)
+            return default if value is None else value
+
+        eB_max = setting('ebMaxKwh', config["ebMaxKwh"])
         eB_min = int(eB_max * .2)
         eB_range = eB_max - eB_min
-        numChargers = len(self.chargers)
-        pCB_ub = config["chargerPower"]
-        gridKWH = config['gridMaxPower']
-        eff = config['chargerEff']
-        demand_month = config.get('demandChargePerKw', 0.0)
+        numChargers = setting('numChargers', len(self.chargers))
+        pCB_ub = setting('chargerPower', config["chargerPower"])
+        gridKWH = setting('gridMaxPower', config['gridMaxPower'])
+        eff = setting('chargerEff', config['chargerEff'])
+        demand_month = setting('demandChargePerKw',
+                               config.get('demandChargePerKw', 0.0))
         demand_rate = demand_month / DAYS_PER_MONTH
+        consumption_mode = setting('consumption_mode', CONSUMPTION_MODE)
+        consumption_alpha = setting('consumption_alpha', CONSUMPTION_ALPHA)
         dt = 0.25
+
+        if numChargers < 1:
+            return "No chargers selected", startTimeNum
 
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
             str(i) for i in range(len(routes))]
@@ -381,7 +395,7 @@ class ChargeOpt:
 
         coaches = [self.buses.iloc[b, 0] for b in range(B)]
         energy, consumption_note = block_energy(
-            coaches, mileages, eB_max, CONSUMPTION_MODE, CONSUMPTION_ALPHA)
+            coaches, mileages, eB_max, consumption_mode, consumption_alpha)
 
         # A block no bus can run on one charge is impossible for the fleet, not
         # merely awkward: the bus would have to leave holding more than it can
@@ -415,7 +429,7 @@ class ChargeOpt:
             return (f"Below the {eB_min / eB_max:.0%} reserve at start: "
                     f"{', '.join(too_low)}"), startTimeNum
 
-        prices = init_grid_pricing(DAYS + 2)
+        prices = init_grid_pricing(DAYS + 2, self.scenario.get('tariff'))
         sizes = (B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt,
                  eff, demand_rate)
 
@@ -472,6 +486,7 @@ class ChargeOpt:
                 missed.setdefault(calendar_day, []).append(block_labels[r])
 
         sol_time = time.time() - began
+        unfilled_count = sum(len(v) for v in missed.values())
 
         base = charge_on_arrival(soc_at_start, windows, energy, prices, sizes, WINDOW)
         # Monthly figures assume the planned days repeat. Energy scales with
@@ -491,6 +506,16 @@ class ChargeOpt:
         self.summary = {
             'demand_charge_per_kw': demand_month,
             'consumption': consumption_note,
+            'scenario': {
+                'chargers': numChargers,
+                'charger_kw': pCB_ub,
+                'grid_kw': gridKWH,
+                'demand_per_kw': demand_month,
+                'basis': consumption_mode,
+                'tariff': dict(self.scenario.get('tariff') or {}),
+            },
+            'covered': asked - unfilled_count,
+            'asked': asked,
             'optimized': {
                 'energy_cost_day': optimized_daily,
                 'peak_kw': peak_kw,
@@ -536,10 +561,10 @@ class ChargeOpt:
         }])], ignore_index=True)
         results_df.to_csv(results_file, index=False)
 
-        unfilled = sum(len(v) for v in missed.values())
-        if unfilled:
+        if unfilled_count:
             per_day = '; '.join(f"day {d}: {', '.join(missed[d])}" for d in sorted(missed))
-            covered = f" - covered {asked - unfilled} of {asked} block-days, no bus for {per_day}"
+            covered = (f" - covered {asked - unfilled_count} of {asked} block-days, "
+                       f"no bus for {per_day}")
         else:
             covered = f" - all {asked} block-days covered"
 

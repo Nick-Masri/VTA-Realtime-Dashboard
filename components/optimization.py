@@ -5,6 +5,9 @@ from calls.supa_select import supabase_blocks
 from calls.chargepoint import chargepoint_stations
 import data
 import pandas as pd
+import yaml
+
+from chargeopt.helpers import TARIFF
 from chargeopt.optimization import ChargeOpt, is_partial, is_solved
 from chargeopt.helpers import time_to_quarter
 import os
@@ -124,9 +127,100 @@ def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
         st.altair_chart(soc_chart + reserve, width='stretch')
 
 
+
+@st.cache_data(show_spinner=False)
+def _config_defaults():
+    with open(os.path.join(os.getcwd(), 'chargeopt', 'config.yml')) as handle:
+        return yaml.safe_load(handle)
+
+
+def scenario_controls():
+    """Depot parameters for this run only, so the answer to "what if we added
+    two chargers" is a button rather than a file edit."""
+    cfg = _config_defaults()
+    with st.expander("Scenario - try a depot you do not have yet"):
+        st.caption(
+            "These override chargeopt/config.yml for this run only. Every run "
+            "is kept in the comparison table with the results, so two depots "
+            "can be put side by side."
+        )
+        c1, c2, c3 = st.columns(3)
+        extra = c1.number_input("Extra chargers", 0, 50, 0, step=1,
+                                help="Added to the chargers ticked above.")
+        charger_kw = c2.number_input("Charger power (kW)", 5.0, 600.0,
+                                     float(cfg['chargerPower']), step=5.0)
+        grid_kw = c3.number_input("Grid limit (kW)", 50.0, 10000.0,
+                                  float(cfg['gridMaxPower']), step=50.0)
+
+        c4, c5 = st.columns(2)
+        demand_kw = c4.number_input(
+            "Demand charge ($/kW-month)", 0.0, 200.0,
+            float(cfg.get('demandChargePerKw', 0.0)), step=1.0,
+            help="Set to zero to see what the plan looks like when only "
+                 "energy is priced.")
+        basis = c5.selectbox(
+            "Energy basis", ['interval', 'point', 'fixed'],
+            format_func=lambda m: {
+                'interval': 'Model, upper 90% interval (robust)',
+                'point': 'Model, point prediction',
+                'fixed': 'Flat 2.5 kWh/mile',
+            }[m])
+
+        st.caption("Time-of-use energy rates, $/kWh")
+        t1, t2, t3 = st.columns(3)
+        peak = t1.number_input("Peak (12:00-18:00)", 0.0, 5.0,
+                               float(TARIFF['peak']), step=0.01, format="%.5f")
+        partial = t2.number_input("Partial", 0.0, 5.0,
+                                  float(TARIFF['partial']), step=0.01, format="%.5f")
+        offpeak = t3.number_input("Off-peak", 0.0, 5.0,
+                                  float(TARIFF['offpeak']), step=0.01, format="%.5f")
+
+    return {
+        'extra_chargers': int(extra),
+        'chargerPower': charger_kw,
+        'gridMaxPower': grid_kw,
+        'demandChargePerKw': demand_kw,
+        'consumption_mode': basis,
+        'tariff': {'peak': peak, 'partial': partial, 'offpeak': offpeak},
+    }
+
+
+def record_run(summary):
+    """Keep each solve so scenarios can be compared rather than remembered."""
+    if not summary:
+        return
+    history = st.session_state.get('history') or []
+    sc = summary['scenario']
+    history.append({
+        'Run': len(history) + 1,
+        'Chargers': sc['chargers'],
+        'Charger kW': round(float(sc['charger_kw'])),
+        'Grid kW': round(float(sc['grid_kw'])),
+        'Demand $/kW': round(float(sc['demand_per_kw']), 2),
+        'Basis': sc['basis'],
+        'Covered': f"{summary['covered']}/{summary['asked']}",
+        'Peak kW': round(summary['optimized']['peak_kw']),
+        'Monthly': round(summary['optimized']['monthly']),
+        'vs unmanaged': f"{summary['monthly_saving_pct']:.0f}%",
+    })
+    st.session_state['history'] = history
+
+
+def show_history():
+    history = st.session_state.get('history') or []
+    if len(history) < 2:
+        return
+    st.write("### Scenarios compared")
+    st.caption("Every run this session. The depot you have is usually the first row.")
+    st.dataframe(pd.DataFrame(history), hide_index=True, use_container_width=True)
+    if st.button("Clear scenario history"):
+        st.session_state['history'] = []
+        st.rerun()
+
+
 def opt_form():
 
-    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum', 'summary']
+    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum', 'summary', 'history']
     for key in keys:
         if key not in st.session_state:
             st.session_state[key] = None
@@ -249,6 +343,8 @@ def opt_form():
                                                 )},
                                             column_order=['Select', 'stationName', 'networkStatus'])
 
+        scenario = scenario_controls()
+
         submit = st.form_submit_button("Submit")
 
 
@@ -290,10 +386,15 @@ def opt_form():
             # init_routes rewrites the frame it is given, turning the block
             # clock times into quarter indices, so the display copies keep
             # their own.
+            run_scenario = dict(scenario)
+            run_scenario['numChargers'] = (len(selected_chargers)
+                                           + run_scenario.pop('extra_chargers'))
+
             opt = ChargeOpt(selected_buses.copy(), selected_blocks.copy(),
-                            selected_chargers.copy())
+                            selected_chargers.copy(), scenario=run_scenario)
 
             results, startTimeNum = opt.solve()
+            record_run(opt.summary)
 
             st.toast("Complete")
             st.toast(results)
@@ -406,6 +507,7 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
 
         if is_solved(results):
             show_savings(summary)
+            show_history()
 
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
             results_df.dropna(inplace=True)

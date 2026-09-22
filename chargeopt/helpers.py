@@ -12,7 +12,12 @@ def time_to_quarter(datetime_str):
     quarter_hour = math.ceil(total_minutes / 15)
     return quarter_hour
 
-def init_grid_pricing(numDays):
+# Summer weekday time-of-use, $/kWh. Overridable per run so a scenario can
+# ask what the plan is worth on a different tariff.
+TARIFF = {'peak': 0.59002, 'partial': 0.29319, 'offpeak': 0.22161}
+
+
+def init_grid_pricing(numDays, rates=None):
     # This function sets the price per kWh of grid electricity
     #       time increment: 15 minutes
 
@@ -24,17 +29,22 @@ def init_grid_pricing(numDays):
     # startTimeNum = time_to_quarter(startTime)
     # startTimeNum = 0
     # Create list of prices for single day
+    rate = dict(TARIFF)
+    for key, value in (rates or {}).items():
+        if value is not None:
+            rate[key] = float(value)
+
     grid_pow_init = [0] * 96
     for t in range(96):
         # shift by start time
         minutes = 15 * (t + 1)
         if (minutes > 12 * 60) and (minutes <= 18 * 60):
-            grid_pow_init[t] = 0.59002
+            grid_pow_init[t] = rate['peak']
         elif (((minutes > 8.5 * 60) and (minutes <= 12 * 60)) or
               ((minutes > 18 * 60) and (minutes <= 21.5 * 60))):
-            grid_pow_init[t] = 0.29319
+            grid_pow_init[t] = rate['partial']
         else:
-            grid_pow_init[t] = 0.22161
+            grid_pow_init[t] = rate['offpeak']
 
     # Extend list to proper number of days
     grid_pow_price = []
