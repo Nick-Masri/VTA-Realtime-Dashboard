@@ -2,3 +2,7 @@ chargerEff: 0.94
 chargerPower: 49
 ebMaxKwh: 440
 gridMaxPower: 500
+# $/kW of monthly peak grid draw. Set this from the depot's actual tariff -
+# the demand charge is usually the larger half of the bill, and the plan is
+# only as good as this number.
+demandChargePerKw: 20.0

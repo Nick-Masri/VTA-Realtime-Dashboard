@@ -126,7 +126,7 @@ def show_schedule(twodim_df, assignment_df, selected_blocks, coach_of, eb_max):
 
 def opt_form():
 
-    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum']
+    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum', 'summary']
     for key in keys:
         if key not in st.session_state:
             st.session_state[key] = None
@@ -301,6 +301,7 @@ def opt_form():
             # save results, selected buses, blocks, and chargers to session state
             st.session_state['results'] = results
             st.session_state['startTimeNum'] = startTimeNum
+            st.session_state['summary'] = opt.summary
             st.session_state['buses'] = selected_buses
             st.session_state['blocks'] = selected_blocks
             st.session_state['chargers'] = selected_chargers
@@ -316,9 +317,67 @@ def opt_form():
     selected_blocks = st.session_state['blocks']
     selected_chargers = st.session_state['chargers']
 
-    show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum)
+    show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum,
+                 st.session_state['summary'])
 
-def show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum):
+
+def show_savings(summary):
+    """What the schedule is worth against charging on arrival."""
+    if not summary:
+        return
+
+    opt = summary['optimized']
+    base = summary['baseline']
+
+    st.write("### What this schedule saves")
+    st.caption(
+        f"Against charge-on-arrival - every bus plugged in the moment it is "
+        f"back on the yard, drawing rated power until full, on the same duties. "
+        f"Demand charge taken at ${summary['demand_charge_per_kw']:.0f}/kW of "
+        f"monthly peak."
+    )
+
+    a, b, c = st.columns(3)
+    a.metric("Monthly bill", f"${opt['monthly']:,.0f}",
+             f"-${summary['monthly_saving']:,.0f} ({summary['monthly_saving_pct']:.0f}%)",
+             delta_color="inverse")
+    b.metric("Peak demand", f"{opt['peak_kw']:,.0f} kW",
+             f"{opt['peak_kw'] - base['peak_kw']:+,.0f} kW vs unmanaged",
+             delta_color="inverse")
+    c.metric("Rate paid", f"${opt['cost_per_kwh']:.3f}/kWh",
+             f"{100 * (opt['cost_per_kwh'] / base['cost_per_kwh'] - 1):+.0f}% vs unmanaged"
+             if base['cost_per_kwh'] else "",
+             delta_color="inverse")
+
+    st.dataframe(pd.DataFrame([
+        {'': 'Charge on arrival',
+         'Peak demand': f"{base['peak_kw']:,.0f} kW",
+         'Energy bought': f"{base['energy_kwh']:,.0f} kWh",
+         'Rate paid': f"${base['cost_per_kwh']:.3f}/kWh",
+         'Energy cost/day': f"${base['energy_cost_day']:,.2f}",
+         'Monthly bill': f"${base['monthly']:,.0f}"},
+        {'': 'This schedule',
+         'Peak demand': f"{opt['peak_kw']:,.0f} kW",
+         'Energy bought': f"{opt['energy_kwh']:,.0f} kWh",
+         'Rate paid': f"${opt['cost_per_kwh']:.3f}/kWh",
+         'Energy cost/day': f"${opt['energy_cost_day']:,.2f}",
+         'Monthly bill': f"${opt['monthly']:,.0f}"},
+    ]), hide_index=True, use_container_width=True)
+
+    # Said plainly rather than left for someone to catch: the two rows do not
+    # buy the same number of kWh, so the rate is the honest comparison.
+    if base['energy_kwh'] > opt['energy_kwh'] * 1.02:
+        st.caption(
+            f"Charge-on-arrival fills every pack, so it buys "
+            f"{base['energy_kwh'] - opt['energy_kwh']:,.0f} kWh more than the plan, "
+            f"which only charges to its end-of-horizon target. Part of the gap is "
+            f"that extra energy; the rate paid per kWh is what the time-of-use "
+            f"shifting earns on its own."
+        )
+
+
+def show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum,
+                 summary=None):
     if selected_blocks is None or selected_chargers is None or selected_buses is None: 
         return
     else:
@@ -345,6 +404,7 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             st.success(results)
 
         if is_solved(results):
+            show_savings(summary)
 
             results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
             results_df.dropna(inplace=True)
@@ -365,9 +425,7 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             #     },
             with st.expander("Results and Input Details"): 
                 st.dataframe(results_df, use_container_width=True)
-            cost = results_df['obj_val']
-            cost = float(cost)
-            st.metric("Cost", f"${cost:.2f}")
+
             # visualize in altair
 
             # visualize assignments:
