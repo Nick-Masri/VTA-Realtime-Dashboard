@@ -1,6 +1,8 @@
 # Changing this file makes Streamlit Cloud rebuild the environment and restart
 # the process. A plain code push only hot-reloads changed files, which can leave
 # an already-imported module stale against a newer main.py.
+# rebuild marker 2026-09-22: clear the cached demo_state flags carried over from
+# the hot reload that hid the simulated-data disclosure.
 # essentials
 streamlit>=1.30,<2
 supabase~=1.0.3
