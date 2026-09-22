@@ -18,7 +18,7 @@ should be read together.
 """
 
 
-def charge_on_arrival(soc_at_start, windows, eRoute, prices, sizes, window_len):
+def charge_on_arrival(soc_at_start, windows, energy, prices, sizes, window_len):
     """Returns cost, peak draw and energy delivered for the unmanaged policy."""
     (B, eB_max, eB_min, eB_range, pCB_ub, gridKWH,
      numChargers, dt, eff, demand_rate) = sizes
@@ -38,7 +38,7 @@ def charge_on_arrival(soc_at_start, windows, eRoute, prices, sizes, window_len):
         back_at = {b: 0 for b in range(B)}
         for r, (start, end) in placed.items():
             for b in served.get(r, []):
-                drops.setdefault(end, []).append((b, float(eRoute[r])))
+                drops.setdefault(end, []).append((b, float(energy[(b, r)])))
                 busy.setdefault(b, set()).update(range(start, end + 1))
                 back_at[b] = end
 

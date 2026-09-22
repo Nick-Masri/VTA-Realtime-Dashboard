@@ -334,7 +334,8 @@ def show_savings(summary):
         f"Against charge-on-arrival - every bus plugged in the moment it is "
         f"back on the yard, drawing rated power until full, on the same duties. "
         f"Demand charge taken at ${summary['demand_charge_per_kw']:.0f}/kW of "
-        f"monthly peak."
+        f"monthly peak. Block energy from the {summary.get('consumption', 'flat rate')}, "
+        f"per bus."
     )
 
     a, b, c = st.columns(3)

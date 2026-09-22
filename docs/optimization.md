@@ -65,7 +65,29 @@ From `chargeopt/config.yml`:
 | `demandChargePerKw` | 20.0 | $/kW of monthly peak — **set from the real tariff** |
 | `numChargers` | len(chargers) | identical, interchangeable |
 
-Block energy is `mileage * 2.5 kWh/mile`, a fixed rate in `helpers.init_routes`.
+**Block energy comes from the MAPIE consumption model**, per bus, via
+`chargeopt/consumption.py`. Two consequences:
+
+- Consumption is per *(coach, block)*, not per block. The coach is a model
+  feature and the fleet separates by a few percent on identical mileage. The
+  energy term stays linear — still a constant multiplying the assignment
+  binary — so this costs the solver nothing.
+- `CONSUMPTION_MODE` selects what is planned against:
+
+| Mode | Basis | Effect |
+|---|---|---|
+| `interval` (default) | upper end of a `1 - CONSUMPTION_ALPHA` conformal band (α = 0.1) | plan survives any day below roughly the 95th percentile of consumption |
+| `point` | the model's point prediction | roughly half of days exceed it |
+| `fixed` | flat 2.5 kWh/mile | the original behaviour |
+
+Measured on a 4-bus, 3-block case: flat $4,414/month, point $4,538, interval
+$5,259. Robustness costs about 19% because the plan buys 17% more energy — it
+is a real trade, not a free upgrade. Predictions come back as a percentage of
+pack capacity and are converted with `eB_max`.
+
+If the model cannot be scored — missing pickle, non-numeric coach id, weather
+lookup failure — it falls back to the flat rate and *says so* in the summary
+rather than planning silently on a different basis.
 
 Grid price is a hardcoded summer-weekday TOU curve (`helpers.init_grid_pricing`):
 
@@ -279,9 +301,6 @@ of case size, objective and solve time.
 
 Honest list of what the model does *not* currently capture:
 
-- **Consumption is a flat 2.5 kWh/mile**, while the portal already ships a MAPIE
-  consumption model with prediction intervals. The optimizer does not use it, so
-  the schedule ignores the uncertainty the Energy Predictions tab displays.
 - **One block per bus per window.** `Σ_r assignment[b,r] <= 1` forbids a bus
   running two blocks in a day.
 - **The demand charge is a flat $/kW on the horizon peak.** Real tariffs often
@@ -292,6 +311,11 @@ Honest list of what the model does *not* currently capture:
   rated power at any state of charge.
 - **Prices are a hardcoded summer weekday**, not a live tariff, and identical
   across all three days.
+- **Consumption uncertainty is handled by a quantile, not a distribution.**
+  Planning against an upper conformal bound is a robust point estimate; it is
+  not a stochastic program, and it does not price the cost of a block failing.
+- **The model is scored once, for today's weather**, and the same energy figure
+  is used for all three days of the horizon.
 - **The baseline is a simulation, not a second optimization.** It is a fair
   representation of unmanaged charging, not of a competently hand-built
   schedule.
