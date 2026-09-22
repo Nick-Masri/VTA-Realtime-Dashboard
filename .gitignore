@@ -4,3 +4,7 @@ __pycache__
 .vscode/settings.json
 page_files/valence-vta-app.code-workspace
 chargeopt/outputs/*
+# Committed once in 2023 and leaked a live Supabase service key and Google
+# OAuth tokens; never again.
+.env
+token.json
