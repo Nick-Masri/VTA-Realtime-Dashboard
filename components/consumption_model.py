@@ -48,20 +48,23 @@ def completion_probability(pred, low, high, percent):
     return float(t.cdf((percent - pred) / sd, DEG_FREE))
 
 
-def predict_batch(pairs):
+def predict_batch(pairs, alpha=ALPHA):
     """Predict energy use for many (coach, miles) pairs in one model call.
 
     Returns a DataFrame of coach, miles, pred, low, high - all in percent of
-    pack capacity.
+    pack capacity. alpha sets the conformal interval: the default 0.01 is the
+    99% band the energy views chart, while the scheduler asks for a tighter
+    one, since the upper end of a 99% interval is too conservative to plan
+    against.
     """
     pairs = tuple((float(coach), float(miles)) for coach, miles in pairs)
     if not pairs:
         return pd.DataFrame(columns=['coach', 'miles', 'pred', 'low', 'high'])
-    return _predict_batch(pairs)
+    return _predict_batch(pairs, alpha)
 
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=30))
-def _predict_batch(pairs):
+def _predict_batch(pairs, alpha=ALPHA):
     """Cached so a rerun triggered elsewhere in the app does not re-score the
     whole fleet grid - the energy tab alone asks for 300-odd predictions."""
 
@@ -71,7 +74,7 @@ def _predict_batch(pairs):
         [_features(coach, miles, weather, today) for coach, miles in pairs]
     ).astype(np.float32)
 
-    pred, interval = load_model().predict(rows, alpha=ALPHA)
+    pred, interval = load_model().predict(rows, alpha=alpha)
 
     return pd.DataFrame({
         'coach': [c for c, _ in pairs],

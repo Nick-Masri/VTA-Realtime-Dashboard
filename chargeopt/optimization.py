@@ -12,6 +12,7 @@ from pyomo.contrib.appsi.base import TerminationCondition
 from pyomo.contrib.appsi.solvers import Highs
 
 from chargeopt.baseline import charge_on_arrival
+from chargeopt.consumption import block_energy
 from chargeopt.helpers import init_grid_pricing, init_routes, time_to_quarter
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
@@ -34,6 +35,15 @@ DAYS = 3
 # A monthly demand charge is set by a single peak, so a plan meant to repeat
 # daily carries a thirtieth of it per day.
 DAYS_PER_MONTH = 30
+
+# Where block energy comes from.
+#   'interval' - upper end of a (1 - CONSUMPTION_ALPHA) conformal band from the
+#                MAPIE model, per bus. The default: the plan then survives any
+#                day whose consumption lands below about its 95th percentile.
+#   'point'    - the model's point prediction, which roughly half of days beat
+#   'fixed'    - the flat 2.5 kWh/mile the scheduler used before
+CONSUMPTION_MODE = 'interval'
+CONSUMPTION_ALPHA = 0.1
 # Windows are anchored to the operating day rather than to the moment the plan
 # is built. Anchored to "now", a block starting more than a few hours out has
 # its return fall past the window's end and gets dropped; anchored to the small
@@ -123,7 +133,7 @@ def _window_blocks(w0, departure, arrival, frozen):
     return placed
 
 
-def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, frozen=0):
+def _solve_window(w0, soc_at_start, placed, energy, prices, budget, sizes, frozen=0):
     """One rolling day. Returns the schedule, or None if nothing was found."""
     B, eB_max, eB_min, eB_range, pCB_ub, gridKWH, numChargers, dt, eff, demand_rate = sizes
     runnable = sorted(placed)
@@ -207,9 +217,11 @@ def _solve_window(w0, soc_at_start, placed, eRoute, prices, budget, sizes, froze
         m.opening.add(m.eB[b, WINDOW - 1] >= _end_target(soc_at_start[b], eB_max, eB_min))
         for i in range(WINDOW):
             if i > 0:
-                drop = sum(eRoute[r] * m.assignment[b, r] for r in returns_at.get(i, []))
+                drop = sum(energy[(b, r)] * m.assignment[b, r]
+                           for r in returns_at.get(i, []))
                 m.battery.add(m.eB[b, i] == m.eB[b, i - 1] + dt * m.powerCB[b, i - 1] - drop)
-            need = sum(eRoute[r] * m.assignment[b, r] for r in departs_at.get(i, []))
+            need = sum(energy[(b, r)] * m.assignment[b, r]
+                       for r in departs_at.get(i, []))
             m.route_requirement.add(m.eB[b, i] >= eB_min + need)
 
     m.coverage = pyo.ConstraintList()
@@ -364,11 +376,19 @@ class ChargeOpt:
         block_labels = [str(x) for x in routes['block_id']] if 'block_id' in routes else [
             str(i) for i in range(len(routes))]
 
+        mileages = routes['Mileage'].to_numpy()
         [departure, arrival, eRoute, report] = init_routes(routes, eB_range, pCB_ub)
 
-        # A block needing more than the usable pack can never be run by
-        # anything: the bus would have to leave holding more than it can store.
-        too_long = [r for r in range(R) if eRoute[r] >= eB_range]
+        coaches = [self.buses.iloc[b, 0] for b in range(B)]
+        energy, consumption_note = block_energy(
+            coaches, mileages, eB_max, CONSUMPTION_MODE, CONSUMPTION_ALPHA)
+
+        # A block no bus can run on one charge is impossible for the fleet, not
+        # merely awkward: the bus would have to leave holding more than it can
+        # store. Screened against the most frugal bus, now that consumption
+        # differs between them.
+        too_long = [r for r in range(R)
+                    if min(energy[(b, r)] for b in range(B)) >= eB_range]
         excluded_note = ''
         # Route indices are reported against the block list the caller handed
         # in, which still holds the excluded ones.
@@ -381,7 +401,8 @@ class ChargeOpt:
                         f"pack can give: {names}"), startTimeNum
             departure = np.asarray(departure)[keep]
             arrival = np.asarray(arrival)[keep]
-            eRoute = np.asarray(eRoute)[keep]
+            energy = {(b, new_r): energy[(b, old_r)]
+                      for b in range(B) for new_r, old_r in enumerate(keep)}
             block_labels = [block_labels[r] for r in keep]
             original_index = keep
             R = len(keep)
@@ -421,7 +442,7 @@ class ChargeOpt:
 
             left = TIME_LIMIT_SECONDS - (time.time() - began)
             budget = max(left / (DAYS - day), 10)
-            out = _solve_window(w0, soc, placed, eRoute,
+            out = _solve_window(w0, soc, placed, energy,
                                 prices[w0:w0 + WINDOW], budget, sizes, frozen)
             if out is None:
                 return (f"No schedule found for day {day + 1} within "
@@ -452,7 +473,7 @@ class ChargeOpt:
 
         sol_time = time.time() - began
 
-        base = charge_on_arrival(soc_at_start, windows, eRoute, prices, sizes, WINDOW)
+        base = charge_on_arrival(soc_at_start, windows, energy, prices, sizes, WINDOW)
         # Monthly figures assume the planned days repeat. Energy scales with
         # the days; the demand charge is levied once on the highest peak.
         def _monthly(energy_per_day, peak):
@@ -469,6 +490,7 @@ class ChargeOpt:
         baseline_daily = base['energy_cost'] / DAYS
         self.summary = {
             'demand_charge_per_kw': demand_month,
+            'consumption': consumption_note,
             'optimized': {
                 'energy_cost_day': optimized_daily,
                 'peak_kw': peak_kw,
