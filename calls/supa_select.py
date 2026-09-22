@@ -104,9 +104,12 @@ def supabase_blocks(active=True):
     if _use_demo(data):
         _demo_notice()
         return mock_blocks(active=active)
-    df = pd.DataFrame(data).drop(columns='id')
+    # The _since() window can legitimately outrun the newest row, so an empty
+    # frame is a normal result, not an error. Callers expect None for it.
+    df = pd.DataFrame(data)
 
     if len(df) > 0:
+        df = df.drop(columns='id')
         df = df.rename(columns={"start_time": "block_startTime", "end_time": "block_endTime",
                                 "predicted_arrival": "predictedArrival", "route_id": "id"})
         df['coach'] = df['coach'].astype(str)
@@ -124,7 +127,8 @@ def supabase_soc():
         _demo_notice()
         return mock_soc()
     df = pd.DataFrame(data)
-    # st.write(df.columns)
+    if df.empty:
+        return None
     df['vehicle'] = df['vehicle'].astype(str)
     df['created_at'] = pd.to_datetime(df['created_at'])
     df.sort_values(by='created_at', ascending=False, inplace=True)
@@ -169,6 +173,8 @@ def supabase_soc_history(vehicle=None):
     if _use_demo(data):
         return mock_soc_history(vehicle=vehicle)
     df = pd.DataFrame(data)
+    if df.empty:
+        return None
     df['vehicle'] = df['vehicle'].astype(str)
     df['created_at'] = pd.to_datetime(df['created_at'])
     df.sort_values(by='created_at', ascending=False, inplace=True)
