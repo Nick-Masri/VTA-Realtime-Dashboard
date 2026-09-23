@@ -1,0 +1,52 @@
+{
+  "label": "Chasing cheap hours only",
+  "blurb": "Planned without pricing the peak, then billed for it anyway.",
+  "results": "Optimal solution found - all 10 block-days covered",
+  "startTimeNum": 85,
+  "summary": {
+    "demand_charge_per_kw": 20.0,
+    "consumption": "consumption model, upper 90% interval (about the 95% consumption level)",
+    "proved": true,
+    "gap": 0.03,
+    "scenario": {
+      "peak_priced": false,
+      "chargers": 4,
+      "charger_kw": 49,
+      "grid_kw": 500,
+      "demand_per_kw": 20.0,
+      "basis": "interval",
+      "tariff": {}
+    },
+    "covered": 10,
+    "asked": 10,
+    "optimized": {
+      "energy_cost_day": 209.07910703924816,
+      "peak_kw": 500.0,
+      "energy_kwh": 2830.3656022640907,
+      "cost_per_kwh": 0.22160999999999978,
+      "monthly": 16272.373211177444
+    },
+    "baseline": {
+      "energy_cost_day": 453.7470203593438,
+      "peak_kw": 208.51063829787236,
+      "energy_kwh": 3565.259219285361,
+      "cost_per_kwh": 0.3818070376803866,
+      "monthly": 17782.623376737763
+    },
+    "monthly_saving": 1510.2501655603191,
+    "monthly_saving_pct": 8.492842330203901
+  },
+  "results_row": {
+    "case_name": "chargeopt_09-22-2026_21-07-03",
+    "numBuses": 6,
+    "ebMaxKwh": 440,
+    "numChargers": 4,
+    "chargerPower": 49.0,
+    "routes": "  block_id  block_startTime  block_endTime  Mileage\n0    22-04               23             55     96.0\n1    23-11               25             58     88.0\n2    55-02               27             61    112.0\n3    60-07               30             64    104.0\n4   522-03               36             70     78.0",
+    "gridMaxPower": 500.0,
+    "obj_val": 627.2373211177445,
+    "sol_time": 5.82,
+    "date": "09/22/2026"
+  },
+  "built_at": "2026-09-22 21:07"
+}

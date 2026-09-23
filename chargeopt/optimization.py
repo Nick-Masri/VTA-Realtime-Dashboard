@@ -379,7 +379,11 @@ class ChargeOpt:
         eff = setting('chargerEff', config['chargerEff'])
         demand_month = setting('demandChargePerKw',
                                config.get('demandChargePerKw', 0.0))
-        demand_rate = demand_month / DAYS_PER_MONTH
+        # Whether the peak is priced while planning. Turning this off and still
+        # billing for the peak afterwards is what unmanaged demand costs: the
+        # plan is free to pile into cheap hours and the meter still records it.
+        price_demand = setting('price_demand', True)
+        demand_rate = (demand_month / DAYS_PER_MONTH) if price_demand else 0.0
         consumption_mode = setting('consumption_mode', CONSUMPTION_MODE)
         consumption_alpha = setting('consumption_alpha', CONSUMPTION_ALPHA)
         dt = 0.25
@@ -506,7 +510,11 @@ class ChargeOpt:
         self.summary = {
             'demand_charge_per_kw': demand_month,
             'consumption': consumption_note,
+            # False means a window ran out of time and returned its best find.
+            'proved': all_optimal,
+            'gap': MIP_GAP,
             'scenario': {
+                'peak_priced': bool(price_demand),
                 'chargers': numChargers,
                 'charger_kw': pCB_ub,
                 'grid_kw': gridKWH,

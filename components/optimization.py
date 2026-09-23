@@ -7,6 +7,7 @@ import data
 import pandas as pd
 import yaml
 
+from chargeopt import demo
 from chargeopt.helpers import TARIFF
 from chargeopt.optimization import ChargeOpt, is_partial, is_solved
 from chargeopt.helpers import time_to_quarter
@@ -218,12 +219,49 @@ def show_history():
         st.rerun()
 
 
+
+def demo_scenarios():
+    """Saved runs that open instantly, for when a live five-minute solve is
+    the wrong thing to do to a room."""
+    ready = demo.available()
+    if not ready:
+        return
+
+    st.write("### Start from a worked example")
+    st.caption(
+        "Saved runs on a fixed six-bus depot. They open instantly and are the "
+        "same every time; the live solver stops on a tolerance, so it is not. "
+        "Submit below to solve the real fleet."
+    )
+    columns = st.columns(len(ready))
+    for column, spec in zip(columns, ready):
+        with column:
+            if st.button(spec['label'], use_container_width=True, key=f"demo_{spec['slug']}"):
+                bundle = demo.load(spec['slug'])
+                if not bundle:
+                    st.warning("That saved run could not be read.")
+                    continue
+                st.session_state['results'] = bundle['results']
+                st.session_state['startTimeNum'] = bundle['startTimeNum']
+                st.session_state['buses'] = bundle['buses']
+                st.session_state['blocks'] = bundle['blocks']
+                st.session_state['chargers'] = bundle['chargers']
+                st.session_state['summary'] = bundle['summary']
+                st.session_state['artifacts'] = bundle['artifacts']
+                record_run(bundle['summary'])
+                st.rerun()
+            st.caption(spec['blurb'])
+
+
 def opt_form():
 
-    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum', 'summary', 'history']
+    keys = ['buses', 'blocks', 'chargers', 'results', 'startTimeNum', 'summary', 'history',
+            'artifacts']
     for key in keys:
         if key not in st.session_state:
             st.session_state[key] = None
+
+    demo_scenarios()
 
     serving, charging, idle, offline, df = get_overview_df()
 
@@ -403,6 +441,7 @@ def opt_form():
             st.session_state['results'] = results
             st.session_state['startTimeNum'] = startTimeNum
             st.session_state['summary'] = opt.summary
+            st.session_state['artifacts'] = None
             st.session_state['buses'] = selected_buses
             st.session_state['blocks'] = selected_blocks
             st.session_state['chargers'] = selected_chargers
@@ -419,7 +458,7 @@ def opt_form():
     selected_chargers = st.session_state['chargers']
 
     show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum,
-                 st.session_state['summary'])
+                 st.session_state['summary'], st.session_state.get('artifacts'))
 
 
 def show_savings(summary):
@@ -466,6 +505,17 @@ def show_savings(summary):
          'Monthly bill': f"${opt['monthly']:,.0f}"},
     ]), hide_index=True, use_container_width=True)
 
+    if summary.get('proved'):
+        st.caption(
+            f"Solved to within {summary.get('gap', 0.03):.0%} of the best possible "
+            f"plan, so the same scenario run twice can land a little apart."
+        )
+    else:
+        st.caption(
+            "Stopped at the time limit with the best plan found by then, so the "
+            "same scenario run twice can land a little apart."
+        )
+
     # Said plainly rather than left for someone to catch: the two rows do not
     # buy the same number of kWh, so the rate is the honest comparison.
     if base['energy_kwh'] > opt['energy_kwh'] * 1.02:
@@ -479,7 +529,9 @@ def show_savings(summary):
 
 
 def show_results(selected_buses, selected_blocks, selected_chargers, results, startTimeNum,
-                 summary=None):
+                 summary=None, artifacts=None):
+    """artifacts carries a pre-computed run's tables. A live solve leaves it
+    None and the files written by the solver are read instead."""
     if selected_blocks is None or selected_chargers is None or selected_buses is None: 
         return
     else:
@@ -509,8 +561,12 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             show_savings(summary)
             show_history()
 
-            results_df = pd.read_csv(os.path.join(os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
-            results_df.dropna(inplace=True)
+            if artifacts is not None:
+                results_df = pd.Series(artifacts['results_row']).dropna()
+            else:
+                results_df = pd.read_csv(os.path.join(
+                    os.getcwd(), 'chargeopt', 'outputs', 'results.csv')).iloc[-1]
+                results_df.dropna(inplace=True)
             #  results_df  
             #     {
             #         "case_name": filename,
@@ -549,7 +605,8 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
             filename = results_df["case_name"]
 
             # visualize assignments: 'bus', 'day', 'route'
-            assignment_df = pd.read_csv(f'{path}/assignments_{filename}.csv')
+            assignment_df = (artifacts['assignments'].copy() if artifacts is not None
+                             else pd.read_csv(f'{path}/assignments_{filename}.csv'))
             raw_assignment_df = assignment_df.copy()
             coach_of = dict(enumerate(selected_buses.reset_index()['vehicle']))
             eb_max = float(results_df['ebMaxKwh'])
@@ -596,7 +653,8 @@ def show_results(selected_buses, selected_blocks, selected_chargers, results, st
 
             # Rows are (time, bus) pairs, so slicing by position dropped an
             # uneven number of early hours from each bus.
-            twodim_df = pd.read_csv(f'{path}/{filename}.csv')
+            twodim_df = (artifacts['schedule'].copy() if artifacts is not None
+                         else pd.read_csv(f'{path}/{filename}.csv'))
             twodim_df = twodim_df[twodim_df['time'] >= startTimeNum]
 
             show_schedule(twodim_df, raw_assignment_df, selected_blocks,

@@ -1,0 +1,51 @@
+{
+  "label": "Two more chargers",
+  "blurb": "The same duties with six chargers instead of four.",
+  "results": "Optimal solution found - all 10 block-days covered",
+  "startTimeNum": 85,
+  "summary": {
+    "demand_charge_per_kw": 20.0,
+    "consumption": "consumption model, upper 90% interval (about the 95% consumption level)",
+    "proved": true,
+    "gap": 0.03,
+    "scenario": {
+      "chargers": 6,
+      "charger_kw": 49,
+      "grid_kw": 500,
+      "demand_per_kw": 20.0,
+      "basis": "interval",
+      "tariff": {}
+    },
+    "covered": 10,
+    "asked": 10,
+    "optimized": {
+      "energy_cost_day": 224.42065887064533,
+      "peak_kw": 109.3516710450196,
+      "energy_kwh": 2833.5328136851626,
+      "cost_per_kwh": 0.23760514554843726,
+      "monthly": 8919.653187019752
+    },
+    "baseline": {
+      "energy_cost_day": 464.1137304939687,
+      "peak_kw": 312.76595744680856,
+      "energy_kwh": 3568.426430706437,
+      "cost_per_kwh": 0.3901835216499801,
+      "monthly": 20178.731063755233
+    },
+    "monthly_saving": 11259.07787673548,
+    "monthly_saving_pct": 55.79675868201091
+  },
+  "results_row": {
+    "case_name": "chargeopt_09-22-2026_21-06-01",
+    "numBuses": 6,
+    "ebMaxKwh": 440,
+    "numChargers": 6,
+    "chargerPower": 49.0,
+    "routes": "  block_id  block_startTime  block_endTime  Mileage\n0    22-04               23             55     96.0\n1    23-11               25             58     88.0\n2    55-02               27             61    112.0\n3    60-07               30             64    104.0\n4   522-03               36             70     78.0",
+    "gridMaxPower": 500.0,
+    "obj_val": 819.0642046719621,
+    "sol_time": 9.1,
+    "date": "09/22/2026"
+  },
+  "built_at": "2026-09-22 21:06"
+}

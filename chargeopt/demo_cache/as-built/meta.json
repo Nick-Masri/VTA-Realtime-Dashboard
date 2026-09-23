@@ -1,0 +1,51 @@
+{
+  "label": "The depot as it is",
+  "blurb": "Six buses, five blocks, four 49 kW chargers on the current tariff.",
+  "results": "Optimal solution found - all 10 block-days covered",
+  "startTimeNum": 85,
+  "summary": {
+    "demand_charge_per_kw": 20.0,
+    "consumption": "consumption model, upper 90% interval (about the 95% consumption level)",
+    "proved": true,
+    "gap": 0.03,
+    "scenario": {
+      "chargers": 4,
+      "charger_kw": 49,
+      "grid_kw": 500,
+      "demand_per_kw": 20.0,
+      "basis": "interval",
+      "tariff": {}
+    },
+    "covered": 10,
+    "asked": 10,
+    "optimized": {
+      "energy_cost_day": 221.8961197966474,
+      "peak_kw": 116.44234976557381,
+      "energy_kwh": 2833.5328136851617,
+      "cost_per_kwh": 0.2349322923577436,
+      "monthly": 8985.7305892109
+    },
+    "baseline": {
+      "energy_cost_day": 453.98098226701853,
+      "peak_kw": 208.51063829787236,
+      "energy_kwh": 3568.426430706433,
+      "cost_per_kwh": 0.3816648523510221,
+      "monthly": 17789.642233968003
+    },
+    "monthly_saving": 8803.911644757103,
+    "monthly_saving_pct": 49.488975264194394
+  },
+  "results_row": {
+    "case_name": "chargeopt_09-22-2026_21-05-52",
+    "numBuses": 6,
+    "ebMaxKwh": 440,
+    "numChargers": 4,
+    "chargerPower": 49.0,
+    "routes": "  block_id  block_startTime  block_endTime  Mileage\n0    22-04               23             55     96.0\n1    23-11               25             58     88.0\n2    55-02               27             61    112.0\n3    60-07               30             64    104.0\n4   522-03               36             70     78.0",
+    "gridMaxPower": 500.0,
+    "obj_val": 820.9448257440406,
+    "sol_time": 7.98,
+    "date": "09/22/2026"
+  },
+  "built_at": "2026-09-22 21:06"
+}
