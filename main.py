@@ -19,6 +19,10 @@ def main():
 
     st.title("VTA Electric Bus Data Portal")
 
+    # Drop last run's failures before touching anything, so a feed that has
+    # since recovered stops being reported.
+    demo_state.begin_run()
+
     # Touch the shared feeds first so the disclosure can be rendered above the
     # tabs. These are cached, so the dashboard reuses the same results.
     try:

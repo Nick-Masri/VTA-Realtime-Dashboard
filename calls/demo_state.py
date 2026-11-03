@@ -41,6 +41,17 @@ def note_issue(message):
         issues.append(message)
 
 
+def begin_run():
+    """Clear last run's failures.
+
+    An integration that has recovered should stop being reported. These are
+    re-noted by whatever fails during this run, unlike the simulated-source
+    flags above, which stay set deliberately so the disclosure cannot
+    disappear while synthetic data is still on screen.
+    """
+    _store()['issues'].clear()
+
+
 def render_issues():
     for message in _store()['issues']:
         st.warning(message)
