@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 from supabase import create_client, Client
 from supabase.lib.client_options import ClientOptions
@@ -76,6 +78,40 @@ def setup_client():
     return supabase
 
 
+def _describe(exc):
+    """A short reason, fit to show on the page.
+
+    The raw exception is not. A paused project answers with a Cloudflare
+    error page, and interpolating that painted a full HTML document across
+    the dashboard.
+    """
+    text = ' '.join(str(exc).split())
+    low = text.lower()
+
+    if 'timed out' in low or 'timeout' in low:
+        return (f"a query took longer than {CLIENT_TIMEOUT_SECONDS}s. The "
+                "history tables likely need an index on created_at")
+
+    for phrase in ('name or service not known', 'nodename nor servname',
+                   'temporary failure in name resolution', 'errno -2'):
+        if phrase in low:
+            return ("the project's hostname does not resolve, which is how a "
+                    "paused project looks. Restoring it in Supabase fixes this")
+
+    status = re.search(r"'code':\s*(5\d\d)", text)
+    if status or 'web server is down' in low:
+        code = status.group(1) if status else '521'
+        return (f"the database is not accepting connections yet (HTTP {code}). "
+                "A project that has just been restored needs a minute")
+
+    if '<html' in low:
+        return "the host returned an error page instead of data"
+
+    if len(text) > 160:
+        return text[:160].rstrip() + '...'
+    return text
+
+
 def _fetch(build_query):
     """Run a Supabase query, returning None instead of raising.
 
@@ -85,15 +121,7 @@ def _fetch(build_query):
     try:
         return build_query(setup_client()).execute().data
     except Exception as exc:
-        text = str(exc).lower()
-        if 'timed out' in text or 'timeout' in text:
-            demo_state.note_issue(
-                f"Supabase query exceeded {CLIENT_TIMEOUT_SECONDS}s - using "
-                "simulated data. The history tables likely need an index on "
-                "created_at."
-            )
-        else:
-            demo_state.note_issue(f"Supabase unavailable ({exc})")
+        demo_state.note_issue(f"Supabase unavailable: {_describe(exc)}")
         return None
 
 @st.cache_data(show_spinner=False, ttl=timedelta(minutes=10))
