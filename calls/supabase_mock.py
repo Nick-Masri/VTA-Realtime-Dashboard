@@ -185,8 +185,13 @@ def mock_blocks(active=True, days=14):
     # no end-of-block telemetry to measure it against. Telemetry reaches back
     # further than this (see mock_soc_history) so the oldest block still has
     # readings before it started.
-    last_day = now.normalize() - pd.Timedelta(days=1)
-    for day in pd.date_range(last_day - pd.Timedelta(days=days), last_day, freq='D', tz=PACIFIC):
+    # Step through calendar days in naive local time. Subtracting a fixed
+    # number of hours from a tz-aware timestamp drifts the wall clock when the
+    # span crosses a DST change, and a daily range built from the drifted start
+    # lands on the hour that repeats in November.
+    last_day = now.normalize().tz_localize(None) - pd.Timedelta(days=1)
+    for naive_day in pd.date_range(last_day - pd.Timedelta(days=days), last_day, freq='D'):
+        day = naive_day.tz_localize(PACIFIC, ambiguous=True, nonexistent='shift_forward')
         rng = _rng(f'blocks-{day.date()}')
         for coach in rng.choice(COACHES, size=int(rng.integers(5, 9)), replace=False):
             rows.append(_block_row(str(coach), _ROUTES[int(rng.integers(0, len(_ROUTES)))], day, rng, finished=True))
