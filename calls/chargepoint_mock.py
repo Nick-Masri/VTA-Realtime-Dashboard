@@ -120,7 +120,12 @@ def mock_past_sessions(start_date, end_date):
     coaches = sorted(_COACH_MACS)
     rows = []
 
-    for day in pd.date_range(start.normalize(), end.normalize(), freq='D', tz='US/Pacific'):
+    # Naive local days, localized per day, for the same DST reason as in
+    # calls/supabase_mock.py.
+    for naive_day in pd.date_range(start.normalize().tz_localize(None),
+                                   end.normalize().tz_localize(None), freq='D'):
+        day = naive_day.tz_localize('US/Pacific', ambiguous=True,
+                                    nonexistent='shift_forward')
         rng = _rng(f'history-{day.date()}')
         # Buses charge overnight back at the yard.
         for coach in rng.choice(coaches, size=int(rng.integers(4, 8)), replace=False):
